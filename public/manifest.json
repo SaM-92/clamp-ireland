@@ -1,0 +1,10 @@
+{
+  "name": "Clamp Transparency Signal",
+  "short_name": "ClampSignal",
+  "description": "Community reporting map for clamping hotspots in Ireland.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#171717",
+  "icons": []
+}
