@@ -26,8 +26,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      suppressHydrationWarning
     >
-      <body className="flex min-h-full flex-col bg-zinc-50 dark:bg-black">
+      <body className="flex min-h-full flex-col bg-zinc-50 dark:bg-black" suppressHydrationWarning>
         <header className="flex h-16 items-center justify-between border-b border-black/10 px-4 dark:border-white/10">
           <Link href="/" className="font-semibold">
             🚧 Clamp Transparency Signal

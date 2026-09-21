@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { Map as MapLibreMap, Marker, NavigationControl, Popup } from "maplibre-gl";
+import { GeolocateControl, Map as MapLibreMap, Marker, NavigationControl, Popup } from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { IRELAND_CENTER, IRELAND_DEFAULT_ZOOM, MAP_STYLE_URL } from "../lib/mapStyle";
 import type { LocationSummary } from "@/modules/locations/types";
@@ -43,6 +43,14 @@ export function MapView({ locations, onMapClick }: MapViewProps) {
       zoom: IRELAND_DEFAULT_ZOOM,
     });
     map.addControl(new NavigationControl(), "top-right");
+    map.addControl(
+      new GeolocateControl({
+        positionOptions: { enableHighAccuracy: true },
+        trackUserLocation: true,
+        showUserLocation: true,
+      }),
+      "top-right"
+    );
     map.on("click", (event) => {
       onMapClickRef.current(event.lngLat.lat, event.lngLat.lng);
     });
