@@ -37,7 +37,7 @@ export function AccountMenu() {
     <div className="account-menu">
       {signedIn
         ? <>
-          <Link className="nav-button" href="/auth/username">Your username</Link>
+          <Link className="nav-button" href="/auth/username?edit=1">Your username</Link>
           <button className="nav-button" disabled={busy} onClick={handleSignOut}>{busy ? "Signing out..." : "Sign out"}</button>
         </>
         : <Link className="nav-button" href="/auth/sign-in">Sign in</Link>}

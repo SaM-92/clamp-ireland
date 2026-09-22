@@ -1,69 +1,67 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
-import { getAccessToken } from "../lib/supabaseAuth";
+import { requestUsername, UsernameRequestError } from "../lib/username";
 import { validateContent } from "@/modules/content-policy/policy";
 
-export function UsernameForm() {
+export function UsernameForm({ edit = false }: { edit?: boolean }) {
   const router = useRouter();
   const [username, setUsername] = useState("");
+  const [savedUsername, setSavedUsername] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [needsSignIn, setNeedsSignIn] = useState(false);
+  const saveController = useRef<AbortController | null>(null);
 
   useEffect(() => {
     let active = true;
     const controller = new AbortController();
     async function load() {
+      let redirecting = false;
       try {
-        const token = await getAccessToken();
-        if (!token) {
-          if (active) setNeedsSignIn(true);
-          return;
+        const identity = await requestUsername({ signal: controller.signal });
+        if (!active) return;
+        if (!identity.needsOnboarding && !edit) {
+          redirecting = true;
+          router.replace("/");
+        } else {
+          setUsername(identity.username ?? "");
+          setSavedUsername(identity.username);
         }
-        const response = await fetch("/api/profile/username", {
-          headers: { Authorization: `Bearer ${token}` }, cache: "no-store", signal: controller.signal,
-        });
-        const body = await response.json();
-        if (response.status === 401 && active) setNeedsSignIn(true);
-        if (!response.ok) throw new Error(body.error ?? "Could not load your username. Please retry.");
-        if (active) setUsername(body.username ?? "");
       } catch (cause) {
+        if (active && cause instanceof UsernameRequestError && cause.status === 401) setNeedsSignIn(true);
         if (active && !controller.signal.aborted) setError(cause instanceof Error ? cause.message : "Could not load your username. Please retry.");
       } finally {
-        if (active) setLoading(false);
+        if (active && !redirecting) setLoading(false);
       }
     }
     void load();
-    return () => { active = false; controller.abort(); };
-  }, []);
+    return () => { active = false; controller.abort(); saveController.current?.abort(); };
+  }, [edit, router]);
 
   async function submit(event: FormEvent) {
     event.preventDefault();
     setError(null);
     setBusy(true);
+    const controller = new AbortController();
+    saveController.current = controller;
     try {
       const normalized = validateContent("username", username);
-      const token = await getAccessToken();
-      if (!token) {
-        setNeedsSignIn(true);
-        throw new Error("Sign in with a confirmed account first.");
-      }
-      const response = await fetch("/api/profile/username", {
-        method: "PUT", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ username: normalized }),
-      });
-      const body = await response.json();
-      if (!response.ok) throw new Error(body.error ?? "Could not save your username. Please retry.");
+      if (normalized !== savedUsername) await requestUsername({ username: normalized, signal: controller.signal });
+      if (controller.signal.aborted) return;
       router.replace("/");
       router.refresh();
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Could not save your username. Please retry.");
+      if (!controller.signal.aborted) {
+        if (cause instanceof UsernameRequestError && cause.status === 401) setNeedsSignIn(true);
+        setError(cause instanceof Error ? cause.message : "Could not save your username. Please retry.");
+      }
     } finally {
-      setBusy(false);
+      if (!controller.signal.aborted) setBusy(false);
+      saveController.current = null;
     }
   }
 
@@ -85,7 +83,7 @@ export function UsernameForm() {
       <p className="field-hint">Usernames are checked for profanity, abuse and impersonation before being saved. Your Google or email account name is never used as an approved public username.</p>
       {error && <p className="form-error" role="alert">{error}</p>}
       <button className="button button-primary" disabled={busy} type="submit">{busy ? "Checking username..." : "Save username and continue"}</button>
-      <Link className="button button-surface" href="/">Browse without posting</Link>
+      <Link className="button button-surface" href="/">Return to the map</Link>
     </form>
   );
 }
