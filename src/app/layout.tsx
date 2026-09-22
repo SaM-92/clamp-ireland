@@ -5,6 +5,8 @@ import "./globals.css";
 import { DonateButton } from "@/modules/donations/components/DonateButton";
 import { Icon } from "@/lib/components/Icon";
 import { AccountMenu } from "@/modules/auth/components/AccountMenu";
+import { seoPolicy } from "@/modules/seo/config";
+import { PRIVATE_ROBOTS } from "@/modules/seo/policy";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -16,6 +18,8 @@ export const metadata: Metadata = {
   description:
     "A community reporting map for clamping hotspots in Ireland — report what happened, help others avoid it.",
   manifest: "/manifest.json",
+  ...(seoPolicy.origin ? { metadataBase: new URL(seoPolicy.origin) } : {}),
+  robots: seoPolicy.indexEnabled ? { index: true, follow: true } : PRIVATE_ROBOTS,
 };
 
 export const viewport: Viewport = {
@@ -48,6 +52,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         {children}
         <footer className="site-footer">
           <span>Built for the community. Not for profit.</span>
+          <nav className="footer-links" aria-label="Useful links">
+            <Link href="/appeal">How to appeal</Link>
+            <Link href="/admin">Admin dashboard</Link>
+          </nav>
           <span>Community reports, not verified findings. Always check local parking signs.</span>
         </footer>
       </body>

@@ -13,6 +13,11 @@ export const env = {
   NEXT_PUBLIC_DONATION_URL:
     process.env.NEXT_PUBLIC_DONATION_URL ?? "",
   NEXT_PUBLIC_GOOGLE_AUTH_ENABLED: process.env.NEXT_PUBLIC_GOOGLE_AUTH_ENABLED === "true",
+  SITE_URL: process.env.SITE_URL ?? "",
+  ALLOW_INDEXING: process.env.ALLOW_INDEXING === "true",
+  VERCEL_ENV: process.env.VERCEL_ENV,
+  ENABLE_TRAFFIC_ANALYTICS: process.env.ENABLE_TRAFFIC_ANALYTICS === "true",
+  ENABLE_AREA_SUMMARIES: process.env.ENABLE_AREA_SUMMARIES === "true",
   OPENAI_API_KEY: process.env.OPENAI_API_KEY ?? "",
 } as const;
 

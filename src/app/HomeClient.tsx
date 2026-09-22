@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import { Icon } from "@/lib/components/Icon";
 import { MapView } from "@/modules/map/components/MapView";
 import { CITIES, type MapFocus } from "@/modules/map/lib/mapStyle";
@@ -203,6 +204,14 @@ export function HomeClient({ initialStats, preview }: { initialStats: Transparen
             showZones={showZones} onLocationSelect={setSelectedLocation} />
           <div className="map-caption"><Icon name="info" /> Tap a pin or coloured zone to read notes. Use Add a report to share an experience.</div>
         </div>
+      </section>
+
+      <section className="appeal-resource" aria-labelledby="appeal-resource-title">
+        <div>
+          <h2 id="appeal-resource-title">Been clamped? Know your appeal options.</h2>
+          <p>Our community reports do not submit an appeal. See the official two-stage process for the Republic of Ireland and keep an eye on the deadlines.</p>
+        </div>
+        <Link href="/appeal" className="button button-surface">How to appeal <Icon name="arrow" /></Link>
       </section>
 
       <section id="how-it-works" className="how-it-works" aria-label="How it works">

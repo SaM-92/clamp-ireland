@@ -1,6 +1,13 @@
 import { SignInForm } from "@/modules/auth/components/SignInForm";
 import Link from "next/link";
 import { isSupabaseConfigured } from "@/lib/env";
+import type { Metadata } from "next";
+import { PRIVATE_ROBOTS } from "@/modules/seo/policy";
+
+export const metadata: Metadata = {
+  title: "Sign in | Clamp Transparency Signal",
+  robots: PRIVATE_ROBOTS,
+};
 
 export default function SignInPage() {
   const preview = process.env.NODE_ENV === "development" && !isSupabaseConfigured;

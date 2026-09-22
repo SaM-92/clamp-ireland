@@ -1,6 +1,15 @@
 import { HomeClient } from "./HomeClient";
 import { getTransparencyStats } from "@/modules/dashboard/server/stats";
 import { isSupabaseConfigured } from "@/lib/env";
+import { seoPolicy } from "@/modules/seo/config";
+import { publicPageMetadata, websiteStructuredData } from "@/modules/seo/policy";
+
+export const metadata = publicPageMetadata(
+  seoPolicy,
+  "/",
+  "Clamp Transparency Signal | Community clamping map",
+  "Browse community-reported clamping hotspots across Ireland, share an experience, and find a Republic of Ireland clamping appeal guide. Reports are not verified findings.",
+);
 
 // Avoid attempting static prerendering against a live database at build
 // time — stats are fetched fresh per request (and degrade gracefully to
@@ -9,5 +18,16 @@ export const dynamic = "force-dynamic";
 
 export default async function Home() {
   const stats = await getTransparencyStats();
-  return <HomeClient initialStats={stats} preview={process.env.NODE_ENV === "development" && !isSupabaseConfigured} />;
+  const website = websiteStructuredData(seoPolicy);
+  return (
+    <>
+      {website && (
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(website).replace(/</g, "\\u003c") }}
+        />
+      )}
+      <HomeClient initialStats={stats} preview={process.env.NODE_ENV === "development" && !isSupabaseConfigured} />
+    </>
+  );
 }
