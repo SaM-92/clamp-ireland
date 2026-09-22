@@ -14,8 +14,9 @@ storage, email and model usage are not guaranteed free.
 
 **Status: local prototype, not launch-ready.** The map works without a
 backend. Live accounts, moderation, and report storage need Supabase.
-Privacy/legal policies, abuse controls, real AI text review, and image
-redaction tooling remain launch prerequisites; see the roadmap.
+Server-side AI content checks are implemented, but backend configuration,
+privacy/legal policies, production abuse safeguards and image redaction
+tooling remain launch prerequisites; see the roadmap.
 
 ## Quick local preview (no account needed)
 
@@ -34,6 +35,21 @@ Each note also has **Agreed / Disagreed** feedback. In local preview this
 simulates one browser voter; Reset preview clears both notes and votes.
 Production builds never enable this preview, and API writes still require
 a valid, email-confirmed Supabase user.
+
+For a **real Azure AI demonstration**, configure the existing GPT-5 mini
+deployment in ignored `.env.local`, enable `ENABLE_LOCAL_AI_DEMO`, and bind
+the dev server to loopback:
+
+```powershell
+npm run dev -- --hostname 127.0.0.1 --port 3001
+```
+
+Open http://localhost:3001/dev/ai-demo. Fixed synthetic examples show a real
+one-sentence summary, allowed factual criticism and blocked abuse/usernames.
+It clearly distinguishes Azure output, cached output and no-cost local rules.
+The demo has a persistent ten-attempt budget and is unavailable in production.
+It never bypasses administrator authentication or publishes community content.
+See [the AI handoff](docs/17-azure-ai-handoff.md) for limits and setup.
 
 Search Irish towns or street names (for example **Main Street, Naas**), or
 use the city shortcuts. Pins and coloured zones open the notes at that spot.
@@ -86,10 +102,17 @@ Read these in order for full context (each depends on the ones before it):
   deployment still requires explicit approval.
 - [`docs/14-private-admin-handoff.md`](docs/14-private-admin-handoff.md) —
   separate administration app, two-account access, private sessions and setup.
+- [`docs/15-release-handoff.md`](docs/15-release-handoff.md) — CI gates,
+  image packaging, version tags and approval-gated deployment records.
+- [`docs/16-content-policy-handoff.md`](docs/16-content-policy-handoff.md) —
+  report/username policy checks, onboarding and direct-write restrictions.
+- [`docs/17-azure-ai-handoff.md`](docs/17-azure-ai-handoff.md) — shared Azure
+  model provider, local live demonstration and bounded inference.
 
 Code is module-based under `src/modules/*`, one folder per domain concept
 (`scoring`, `locations`, `reports`, `moderation`, `map`, `auth`,
-`donations`, `dashboard`, `admin`, `analytics`, `seo`, `area-summaries`, `votes`),
+`donations`, `dashboard`, `admin`, `analytics`, `seo`, `area-summaries`, `votes`,
+`ai`, `ai-demo`, `content-policy`, `release`),
 with domain-specific `types`, client `api`, optional
 `server/` (service-role-only logic), and `components/`. Shared, cross-module
 code lives in `src/lib` (env access, Supabase clients). Routes and API
@@ -98,7 +121,7 @@ sign-in and APIs live exclusively in `apps/admin/src/app`, with an independent
 Next.js build and shared domain modules.
 
 ## Prerequisites
-- Node.js 20+
+- Node.js 24 (the CI/container baseline)
 - A free [Supabase](https://supabase.com) account (for Postgres + Auth + Storage)
 
 ## Setup
@@ -119,8 +142,10 @@ npm install
    for reviewed 500 m summaries, then
    [`0005_report_votes.sql`](supabase/migrations/0005_report_votes.sql)
    for public feedback counts and private confirmed-account voting.
-   Apply each migration once. Migration 0005 is required before deploying
-   this version against a configured backend.
+   Then [`0006_content_policy.sql`](supabase/migrations/0006_content_policy.sql)
+   adds username moderation, submission rate admission and direct-write
+   restrictions. Apply each migration once. Migration 0006 and a configured
+   AI provider are required before deploying this version against a backend.
    The second migration restricts public reads to reviewed notes, prevents
    self-assigned admin roles, and restricts location creation to the server.
    It intentionally requeues legacy published reports without review stamps
@@ -163,9 +188,15 @@ Fill in:
   Supabase Auth. Put the Google OAuth client ID/secret in **Supabase**, not in
   browser variables; register the callback URL Supabase provides with Google.
   This is a Google OAuth client, not a Gmail API integration.
-- `OPENAI_API_KEY` — configure **only in the separate admin app**, for optional GPT-5 mini area-summary
-  generation. Never expose it to browsers. Submission text softening remains
-  heuristic-only; this key does not enable automatic moderation.
+- `AI_PROVIDER=azure`, `AZURE_OPENAI_ENDPOINT`,
+  `AZURE_OPENAI_DEPLOYMENT=gpt-5-mini`, `AZURE_OPENAI_AUTH_MODE=entra` —
+  the public server's report/username classifier and the separate admin
+  server's optional summary generator each need their own server-side
+  inference access. Local Entra authentication uses Azure CLI; production
+  uses managed identity. No role assignments are created automatically.
+  Optional API-key mode uses `AZURE_OPENAI_API_KEY` server-side only.
+  The earlier `AI_PROVIDER=openai` / `OPENAI_API_KEY` transport remains
+  available, but there is no silent cross-provider fallback.
 - `ENABLE_AREA_SUMMARIES` — default `false` in both apps. After migration
   0004, enable on the public app to read reviewed summaries, and independently
   on the admin app to permit paid draft generation. Public reads need neither

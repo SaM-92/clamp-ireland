@@ -1,6 +1,7 @@
 import http from "node:http";
 import path from "node:path";
 import next from "next";
+import { disabledAiEnvironment } from "../../scripts/ci/environment.mjs";
 
 // Only test transport is replaced; the app's real page/API auth gates run.
 const ids = {
@@ -53,6 +54,7 @@ await new Promise((resolve) => identity.listen(0, "127.0.0.1", resolve));
 const address = identity.address();
 if (!address || typeof address === "string") throw new Error("Identity fixture did not start.");
 Object.assign(process.env, {
+  ...disabledAiEnvironment,
   NODE_ENV: production ? "production" : "development",
   NEXT_PUBLIC_SUPABASE_URL: `http://127.0.0.1:${address.port}`,
   NEXT_PUBLIC_SUPABASE_ANON_KEY: "fixture-anon",
@@ -60,7 +62,7 @@ Object.assign(process.env, {
   ADMIN_ALLOWED_USER_IDS: `${ids["owner-session"]},${ids["cofounder-session"]}`,
   ADMIN_SITE_URL: "http://127.0.0.1:3016",
   ENABLE_AREA_SUMMARIES: "false", ENABLE_TRAFFIC_ANALYTICS: "false",
-  OPENAI_API_KEY: "", SITE_URL: "", ALLOW_INDEXING: "false",
+  SITE_URL: "", ALLOW_INDEXING: "false",
 });
 const app = next({ dev: !production, dir: path.resolve("apps", "admin"), hostname: "127.0.0.1", port: 3016 });
 const handler = app.getRequestHandler();

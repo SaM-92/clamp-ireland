@@ -1,4 +1,4 @@
-# Roadmap / Phased Backlog (v6 — reviewed summaries and note feedback)
+# Roadmap / Phased Backlog (v7 — release preparation and Azure content checks)
 
 Depends on: 00-product-plan.md, 01-architecture.md, 02-data-model.md,
 03-scoring-algorithm.md, 04-legal-considerations.md.
@@ -19,6 +19,8 @@ only in chat history.
       snapshots, private drafts, review, freshness and generation admission
 - [x] `0005_report_votes.sql` — unique confirmed-account feedback, private
       own selections, safe public counts and atomic set/switch/remove
+- [x] `0006_content_policy.sql` prepared — checked usernames, direct-write
+      restrictions and atomic per-account/global inference quotas
 - [x] Create GitHub repo under SaM-92 (`clamp-ireland`; initial scaffold pushed)
 - [ ] Supabase project actually created (dev) — migration has not been run
       against a real project yet
@@ -63,7 +65,10 @@ only in chat history.
       locations, total locations
 - [x] Admin-requested GPT-5 mini nearby summaries, one short attributed
       sentence, separate human approval and source-fresh public cache
-- [ ] Configure/approve live model usage and test actual model quality/cost
+- [x] Existing Azure GPT-5 mini reused through a shared bounded server provider;
+      real synthetic local summary and allowed/blocked content calls verified
+- [ ] Production inference identity, processing/privacy approval and broader
+      model-quality evaluation (a few synthetic examples are not certification)
 - [ ] Verify 499/500/501 m source boundaries against a real PostGIS instance
 - [ ] Bounded batching for summary source sets beyond current 200-note/48KB limits
 - [ ] Server-side auto-blur pass (license plates/faces) as an assist before
@@ -74,9 +79,14 @@ only in chat history.
       moderation-status change, see `03-scoring-algorithm.md` §6)
 - [ ] Wire up the real AI call in `textSoftening.ts` (currently heuristic-only)
 
-## Phase 3 — Anti-abuse & legal-required features (not started)
+## Phase 3 — Anti-abuse & legal-required features (partly implemented)
+- [x] Server-side report and username profanity/contextual AI policy checks,
+      fail-closed errors, confirmation-before-inference and approval-before-write
+- [x] Pseudonymous username onboarding, ignoring untrusted signup/OAuth names
+- [x] Prepared database permissions prevent direct browser policy bypass;
+      per-account/hour and global/day AI reservations bound costs across instances
 - [ ] Cloudflare Turnstile on signup + report submission
-- [ ] Per-account/IP rate limiting
+- [ ] Broader IP/signup/upload limits beyond the implemented AI admission quota
 - [ ] Anti-brigading cap in the scoring engine (see `03-scoring-algorithm.md` §8)
 - [ ] Real notice-and-action flow (flag button + admin queue UI, published
       contact email, statement-of-reasons/appeal) — see
@@ -121,6 +131,17 @@ only in chat history.
 - [ ] Public domain/deployment, launch approval, Search Console and indexing opt-in
 - [ ] Admin account management, review audit history and queue pagination
 
+## Phase 5 — Release engineering (preparation only)
+- [x] Explicit unit/server, database-policy and release-contract test gates
+- [x] Separate public/admin standalone container packaging and build metadata
+- [x] GitHub PR/default-branch CI and manually dispatched release/deploy workflow
+- [x] Semantic source tags, digest-pinned promotion and per-attempt version records
+- [ ] Production build, container and GitHub-run verification of this integration
+- [ ] Configure release/production environments, reviewer protection and Azure OIDC
+- [ ] Provision/approve hosting, backend identities, private storage and domains
+- [ ] Apply reviewed migrations after owner approval
+- [ ] First actual Azure deployment and post-deployment smoke
+
 ## Naming
 Working name "ClampWatch" / "Clamp Transparency Signal" — repo is currently
 named `clamp-ireland` locally. Confirm final public name/domain before
@@ -135,6 +156,8 @@ appeal guide, search eligibility and support-payment setup; handoff 11 covers
 Azure architecture recommendation (not deployment approval). The app remains
 a prototype: these features do not complete the Phase 2/3 launch safeguards.
 Handoff 14 supersedes earlier same-site admin and admin-preview instructions.
+Handoffs 15-17 cover release automation, content-policy enforcement and the
+live synthetic Azure demo. Production deployment remains explicitly on hold.
 
 ## Explicitly out of scope for MVP (revisit later if community grows)
 - Native mobile apps

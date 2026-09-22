@@ -1,0 +1,256 @@
+name: Manual versioned release
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing vX.Y.Z tag on master history, matching package.json
+        required: true
+        type: string
+      deploy:
+        description: Also request protected production deployment (requires repository opt-in)
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-release
+  cancel-in-progress: false
+
+jobs:
+  resolve:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      sha: ${{ steps.release.outputs.sha }}
+      version: ${{ steps.release.outputs.version }}
+      tag: ${{ steps.release.outputs.tag }}
+    steps:
+      - name: Require dispatch from master
+        env:
+          DISPATCH_REF: ${{ github.ref }}
+        run: test "$DISPATCH_REF" = "refs/heads/master"
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '24'
+      - id: release
+        env:
+          RELEASE_TAG: ${{ inputs.tag }}
+        run: node scripts/release/resolve.mjs "$RELEASE_TAG"
+
+  checks:
+    needs: resolve
+    uses: ./.github/workflows/ci.yml
+    with:
+      revision: ${{ needs.resolve.outputs.sha }}
+
+  package:
+    needs: [resolve, checks]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    environment: release
+    permissions:
+      contents: write
+      packages: write
+    outputs:
+      public_digest: ${{ steps.public.outputs.digest }}
+      admin_digest: ${{ steps.admin.outputs.digest }}
+      smoke: ${{ steps.smoke.outcome }}
+    env:
+      RELEASE_VERSION: ${{ needs.resolve.outputs.version }}
+      RELEASE_SHA: ${{ needs.resolve.outputs.sha }}
+      RELEASE_TAG: ${{ needs.resolve.outputs.tag }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ needs.resolve.outputs.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '24'
+      - name: Validate public-only build inputs
+        env:
+          PUBLIC_SUPABASE_URL: ${{ secrets.PUBLIC_SUPABASE_URL }}
+          PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.PUBLIC_SUPABASE_ANON_KEY }}
+        run: |
+          test -n "$PUBLIC_SUPABASE_URL" || { echo "::error::Missing release environment PUBLIC_SUPABASE_URL"; exit 1; }
+          test -n "$PUBLIC_SUPABASE_ANON_KEY" || { echo "::error::Missing release environment PUBLIC_SUPABASE_ANON_KEY"; exit 1; }
+      - id: images
+        run: echo "repository=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_OUTPUT"
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+      - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - id: public
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
+        env:
+          DOCKER_BUILD_SUMMARY: 'false'
+          DOCKER_BUILD_RECORD_UPLOAD: 'false'
+        with:
+          context: .
+          target: public
+          platforms: linux/amd64
+          push: true
+          provenance: false
+          tags: ${{ steps.images.outputs.repository }}/public:sha-${{ needs.resolve.outputs.sha }}
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.version=${{ needs.resolve.outputs.version }}
+            org.opencontainers.image.revision=${{ needs.resolve.outputs.sha }}
+          build-args: |
+            RELEASE_SHA=${{ needs.resolve.outputs.sha }}
+            BUILD_PROFILE=production
+          secrets: |
+            public_supabase_url=${{ secrets.PUBLIC_SUPABASE_URL }}
+            public_supabase_anon_key=${{ secrets.PUBLIC_SUPABASE_ANON_KEY }}
+      - id: admin
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
+        env:
+          DOCKER_BUILD_SUMMARY: 'false'
+          DOCKER_BUILD_RECORD_UPLOAD: 'false'
+        with:
+          context: .
+          target: admin
+          platforms: linux/amd64
+          push: true
+          provenance: false
+          tags: ${{ steps.images.outputs.repository }}/admin:sha-${{ needs.resolve.outputs.sha }}
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.version=${{ needs.resolve.outputs.version }}
+            org.opencontainers.image.revision=${{ needs.resolve.outputs.sha }}
+          build-args: |
+            RELEASE_SHA=${{ needs.resolve.outputs.sha }}
+            BUILD_PROFILE=production
+          secrets: |
+            public_supabase_url=${{ secrets.PUBLIC_SUPABASE_URL }}
+            public_supabase_anon_key=${{ secrets.PUBLIC_SUPABASE_ANON_KEY }}
+      - id: smoke
+        env:
+          PUBLIC_IMAGE: ${{ steps.images.outputs.repository }}/public@${{ steps.public.outputs.digest }}
+          ADMIN_IMAGE: ${{ steps.images.outputs.repository }}/admin@${{ steps.admin.outputs.digest }}
+        run: node scripts/release/container-smoke.mjs
+      - name: Publish versioned notes and immutable manifest
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PUBLIC_DIGEST: ${{ steps.public.outputs.digest }}
+          ADMIN_DIGEST: ${{ steps.admin.outputs.digest }}
+        run: node scripts/release/publish.mjs
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always()
+        with:
+          name: package-${{ github.run_id }}-${{ github.run_attempt }}
+          path: test-results/
+          if-no-files-found: warn
+          retention-days: 30
+
+  deploy:
+    if: ${{ inputs.deploy }}
+    needs: [resolve, package]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    environment: production
+    permissions:
+      contents: read
+      id-token: write
+    outputs:
+      outcome: ${{ steps.deploy.outputs.outcome }}
+    env:
+      ENABLE_PRODUCTION_DEPLOY: ${{ vars.ENABLE_PRODUCTION_DEPLOY }}
+      AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      AZURE_RESOURCE_GROUP: ${{ secrets.AZURE_RESOURCE_GROUP }}
+      PUBLIC_CONTAINER_APP: ${{ secrets.PUBLIC_CONTAINER_APP }}
+      ADMIN_CONTAINER_APP: ${{ secrets.ADMIN_CONTAINER_APP }}
+      PUBLIC_SITE_ORIGIN: ${{ secrets.PUBLIC_SITE_ORIGIN }}
+      ADMIN_SITE_ORIGIN: ${{ secrets.ADMIN_SITE_ORIGIN }}
+      RELEASE_VERSION: ${{ needs.resolve.outputs.version }}
+      RELEASE_SHA: ${{ needs.resolve.outputs.sha }}
+      PUBLIC_DIGEST: ${{ needs.package.outputs.public_digest }}
+      ADMIN_DIGEST: ${{ needs.package.outputs.admin_digest }}
+      AZURE_CORE_OUTPUT: none
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ needs.resolve.outputs.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '24'
+      - name: Fail closed before Azure authentication
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: node scripts/release/preflight-deploy.mjs
+      - name: Install local Container Apps CLI extension
+        run: az extension add --name containerapp --yes --only-show-errors
+      - uses: azure/login@7184910d9eb2b1c5e48f7073824a90609bb9b6d6 # v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      - id: deploy
+        run: node scripts/release/deployment.mjs
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always()
+        with:
+          name: deployment-${{ github.run_id }}-${{ github.run_attempt }}
+          path: test-results/deployment.json
+          if-no-files-found: warn
+          retention-days: 90
+
+  record:
+    if: ${{ always() && github.ref == 'refs/heads/master' }}
+    needs: [resolve, checks, package, deploy]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '24'
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        if: ${{ needs.deploy.outputs.outcome != '' }}
+        with:
+          name: deployment-${{ github.run_id }}-${{ github.run_attempt }}
+          path: test-results/
+      - name: Record outcome without infrastructure identifiers
+        if: always()
+        env:
+          RELEASE_VERSION: ${{ needs.resolve.outputs.version }}
+          RELEASE_SHA: ${{ needs.resolve.outputs.sha }}
+          RELEASE_TAG: ${{ needs.resolve.outputs.tag }}
+          PUBLIC_DIGEST: ${{ needs.package.outputs.public_digest }}
+          ADMIN_DIGEST: ${{ needs.package.outputs.admin_digest }}
+          RESOLVE_RESULT: ${{ needs.resolve.result }}
+          CHECKS_RESULT: ${{ needs.checks.result }}
+          PACKAGE_RESULT: ${{ needs.package.result }}
+          DEPLOY_RESULT: ${{ needs.deploy.result }}
+          DEPLOY_REQUESTED: ${{ inputs.deploy }}
+          CONTAINER_SMOKE_RESULT: ${{ needs.package.outputs.smoke }}
+        run: node scripts/release/record.mjs
+      - name: Attach durable deployment-attempt record to the published release
+        if: ${{ always() && inputs.deploy && needs.package.result == 'success' }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: node scripts/release/record.mjs --publish
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always()
+        with:
+          name: release-attempt-${{ github.run_id }}-${{ github.run_attempt }}
+          path: test-results/release-attempt.json
+          if-no-files-found: error
+          retention-days: 90

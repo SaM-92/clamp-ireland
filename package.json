@@ -13,7 +13,11 @@
     "start": "next start",
     "start:admin": "next start apps/admin --port 3003",
     "lint": "eslint",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "test:unit": "node scripts/ci/run.mjs unit",
+    "test:sql": "node scripts/ci/run.mjs sql",
+    "test:smoke": "node scripts/ci/run.mjs smoke",
+    "test:release": "node --test scripts/release/*.test.mjs"
   },
   "dependencies": {
     "@azure/identity": "^4.13.3",

@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./helpers/ci-browser";
 import { adminBaseURL, adminUrl, authorizeAdmin } from "./helpers/admin";
 
 test("public site has neither admin links nor administrative pages/APIs, even with administrator credentials", async ({ page, request }) => {
