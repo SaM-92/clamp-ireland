@@ -51,7 +51,9 @@ export function AiDemo({ ready, setupMessage, remaining }: { ready: boolean; set
       <h1>See the AI work.</h1>
       <p>Real Azure GPT-5 mini calls, not prewritten AI answers. Nothing here creates a report, unlocks administration or publishes a summary.</p>
       <p>Content checks return approve or blocked with a fixed explanation, not AI-written feedback. Only the short summary is generated text.</p>
-      <p className={styles.budget}>{budget} of 10 model requests remaining. Repeated successful examples use a local cache.</p>
+      <p className={styles.budget}>{budget} of 10 model requests remaining. {budget === 0
+        ? "New model calls are paused. You can still view cached results and run free local checks."
+        : "Repeated successful examples use a local cache."}</p>
       {!ready && <p className="form-error" role="alert">{setupMessage}</p>}
     </header>
     <div className={styles.grid}>
@@ -61,9 +63,11 @@ export function AiDemo({ ready, setupMessage, remaining }: { ready: boolean; set
           <h2 id={`${id}-title`}>{example.title}</h2>
           {id === "summary" ? <ol className={styles.notes}>{DEMO_NOTES.map((note) => <li key={note}>{note}</li>)}</ol>
             : <blockquote className={styles.example}>{example.text}</blockquote>}
-          <button className="button button-primary" disabled={!ready || pending !== null || (budget === 0 && !result)}
+          <button className="button button-primary" disabled={!ready || pending !== null}
             onClick={() => void run(id)}>
-            {pending === id ? "Checking..." : id === "summary" ? "Generate a real summary" : "Check this example"}
+            {pending === id ? "Checking..." : id === "summary"
+              ? budget === 0 ? "Show cached summary" : "Generate a real summary"
+              : "Check this example"}
           </button>
           {pending === id && <p role="status">Processing this synthetic example. No automatic retries.</p>}
           {errors[id] && <p className="form-error" role="alert">{errors[id]}</p>}

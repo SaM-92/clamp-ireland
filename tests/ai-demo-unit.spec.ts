@@ -5,6 +5,8 @@ import path from "node:path";
 import { policyRuntime } from "./helpers/content-policy-runtime";
 import { demoResultSchema } from "../src/modules/ai-demo/samples";
 import { POLICY_TEXT } from "../src/modules/content-policy/policy";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 
 function fixture(mode = "development") {
   const environment = { NODE_ENV: mode, ENABLE_LOCAL_AI_DEMO: true, AI_PROVIDER: "azure" };
@@ -16,7 +18,10 @@ function fixture(mode = "development") {
     "@/modules/ai/server/config": { getAiConfiguration: () => ({ provider: "azure" }) },
     "@/modules/ai-demo/server/budget": {
       remainingDemoRequests: async () => 10 - reservations,
-      reserveDemoRequest: async () => 10 - ++reservations,
+      reserveDemoRequest: async () => {
+        if (reservations >= 10) throw new Error("The approved demo budget is exhausted.");
+        return 10 - ++reservations;
+      },
     },
     "@/modules/area-summaries/server/provider": {
       generateSummaryFromSnapshot: async (value: { sources: { description: string }[] }) => {
@@ -35,7 +40,8 @@ function fixture(mode = "development") {
       body: JSON.stringify({ example, ...extra }),
     },
   );
-  return { ...rt, route, request, environment, calls: () => calls, reservations: () => reservations, fail: () => { failed = true; } };
+  return { ...rt, route, request, environment, calls: () => calls, reservations: () => reservations,
+    fail: () => { failed = true; }, exhaust: () => { reservations = 10; } };
 }
 
 test("demo is unavailable in production even if someone enables its flag", async () => {
@@ -87,6 +93,39 @@ test("demo classification exposes only the decision and fixed text, separate fro
     { ...result, ai_text: "Extra feedback" },
     { ...result, kind: "summary" },
   ]) expect(demoResultSchema.safeParse(invalid).success).toBe(false);
+});
+
+test("exhausted budget still serves cached and local results but never starts uncached inference", async () => {
+  const f = fixture();
+  expect((await f.route.POST(f.request("summary"))).status).toBe(200);
+  f.exhaust();
+  expect(await (await f.route.POST(f.request("summary"))).json()).toMatchObject({
+    source: "azure", cached: true, remaining: 0,
+  });
+  expect(await (await f.route.POST(f.request("unsafe-username"))).json()).toMatchObject({
+    source: "local-rule", decision: "blocked", cached: false, remaining: 0,
+  });
+  const uncached = await f.route.POST(f.request("allowed-note"));
+  expect(uncached.status).toBe(503);
+  expect(await uncached.json()).toMatchObject({ remaining: 0, error: expect.stringContaining("exhausted") });
+  expect(f.calls()).toBe(1);
+  expect(f.reservations()).toBe(10);
+});
+
+test("fresh page at zero budget keeps replay controls enabled without bypassing setup gates", () => {
+  const rt = policyRuntime({ "next/link": () => null, "./AiDemo.module.css": {} });
+  const { AiDemo } = rt.load<typeof import("../src/modules/ai-demo/components/AiDemo")>(
+    "src/modules/ai-demo/components/AiDemo.tsx",
+  );
+  const render = (ready: boolean) => renderToStaticMarkup(createElement(AiDemo, {
+    ready, remaining: 0, setupMessage: "Setup is required.",
+  }));
+  const exhausted = render(true);
+  expect(exhausted.match(/<button\b/g)).toHaveLength(4);
+  expect(exhausted).not.toContain('disabled=""');
+  expect(exhausted).toContain("Show cached summary");
+  expect(exhausted).toContain("New model calls are paused");
+  expect(render(false).match(/disabled=""/g)).toHaveLength(4);
 });
 
 test("failed demo calls do not invent results or expose exception details", async () => {

@@ -84,6 +84,10 @@ an inaccessible directory or an orphan lock blocks further calls. Do not
 reset the counter or remove a lock while an attempt is running; new spending
 requires owner approval. Successful samples are cached in process memory,
 not in the community database. Restarting loses that cache, not the counter.
+At zero remaining requests the buttons remain usable for cached responses
+and free local checks, including after a page refresh. The server still
+rejects uncached inference before calling Azure. Restoring more paid
+requests requires owner approval; the UI never resets or increases the cap.
 
 The owner approved at most ten short synthetic local requests. Initial live
 verification used **three model calls**: the summary returned one valid
