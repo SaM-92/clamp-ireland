@@ -5,6 +5,9 @@ import { Icon } from "@/lib/components/Icon";
 import type { LocationSummary } from "@/modules/locations/types";
 import type { PublicReport, ReporterType } from "../types";
 import { NearbySummary } from "@/modules/area-summaries/components/NearbySummary";
+import { ReportVotes } from "@/modules/votes/components/ReportVotes";
+import { useReportVoteViewer } from "@/modules/votes/useReportVoteViewer";
+import type { VoteSnapshot } from "@/modules/votes/types";
 
 const REPORTER_LABELS: Record<ReporterType, string> = {
   victim: "Personal experience", neighbour: "Local resident", witness: "Witness",
@@ -28,6 +31,15 @@ export function LocationNotes({ location, previewNotes, onClose, onReport }: {
     return () => { element?.close(); if (previous instanceof HTMLElement && previous.isConnected) previous.focus(); };
   }, []);
   const preview = previewNotes !== null;
+  const voting = useReportVoteViewer(preview ? [] : notes.map((note) => note.id), preview);
+
+  function feedbackSaved(snapshot: VoteSnapshot) {
+    voting.recordVote(snapshot);
+    setNotes((current) => current.map((note) => note.id === snapshot.reportId
+      ? { ...note, voteCounts: { agreeCount: snapshot.agreeCount, disagreeCount: snapshot.disagreeCount } }
+      : note));
+  }
+
   useEffect(() => {
     if (preview) return;
     const request = new AbortController();
@@ -70,6 +82,14 @@ export function LocationNotes({ location, previewNotes, onClose, onReport }: {
             <li key={note.id}>
               <div><strong>{REPORTER_LABELS[note.reporterType]}</strong><time dateTime={note.incidentDate ?? note.createdAt}>{(note.incidentDate ?? note.createdAt).slice(0, 10)}</time></div>
               <p>{note.description}</p>
+              {preview ? (
+                <ReportVotes reportId={note.id} preview counts={{ agreeCount: 0, disagreeCount: 0 }} />
+              ) : note.voteCounts ? (
+                <ReportVotes reportId={note.id} counts={note.voteCounts} viewer={voting.viewerFor(note.id)}
+                  onChange={feedbackSaved} onRetry={voting.retry} />
+              ) : (
+                <p role="alert">Feedback counts are unavailable. Close and reopen notes to retry.</p>
+              )}
             </li>
           ))}</ul>}
         {displayed.length === 50 && <p className="field-hint">Showing the latest 50 approved notes.</p>}

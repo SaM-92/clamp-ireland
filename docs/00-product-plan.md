@@ -36,6 +36,7 @@ location before parking and warn others after being clamped.
 | Map search | OpenFreeMap Bright streets; city shortcuts include Naas. Explicit-submit Photon search covers the island of Ireland subject to OSM indexing. No guarantee of every address. |
 | Coloured areas | **100 m radius, 50% opacity, existing weighted score.** Green/amber/red per report location. Circles do not merge or create a new clustering algorithm. |
 | Area summaries | **500 m radius around the selected spot**, explicitly chosen by the owner. One small model summarises approved notes into a short, cautiously attributed sentence. Generated drafts require admin approval and become stale when source notes change. This does not change the 100 m map circles or risk scores. |
+| Note feedback | **Agreed / Disagreed**, one vote per confirmed account, public counts and private voter identities. Tap the selected choice to remove or the other to switch. Votes do not affect risk scores, report counts, evidence weighting or summary sources. Local preview simulates one browser voter. |
 
 ## 3. Users & contribution types (scoring intent)
 Every report is tied to a map location (pin). Report **type** and **evidence**

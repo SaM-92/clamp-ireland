@@ -41,14 +41,14 @@ for (const width of [320, 375, 390, 430]) {
         await page.setViewportSize({ width, height: 844 });
         await page.locator(".report-marker").tap();
         await page.getByRole("button", { name: "View notes", exact: true }).tap();
-        await expect(page.locator(".public-notes p")).toHaveText(note);
+        await expect(page.locator(".public-notes li > p")).toHaveText(note);
         expect(await page.evaluate(() => "__noteExecuted" in window)).toBe(false);
         expect(await page.locator(".notes-dialog").evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true);
         await page.getByRole("button", { name: "Close location notes" }).tap();
         await expect(page.getByRole("button", { name: "View notes", exact: true })).toBeFocused();
         await page.reload();
         await page.locator(".location-card").tap();
-        await expect(page.locator(".public-notes p")).toHaveText(note);
+        await expect(page.locator(".public-notes li > p")).toHaveText(note);
         await page.getByRole("button", { name: "Close location notes" }).tap();
       }
       await page.setViewportSize({ width, height: 844 });

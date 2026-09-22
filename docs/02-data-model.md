@@ -59,14 +59,32 @@ Index: `CREATE INDEX ON locations USING GIST (geom);`
 | created_at | timestamptz | |
 | resolved | boolean default false | |
 
+### `report_votes` (migration 0005)
+| column | type | notes |
+|---|---|---|
+| report_id | uuid FK -> reports, ON DELETE CASCADE | first part of primary key |
+| user_id | uuid FK -> profiles, ON DELETE CASCADE | private second part of primary key |
+| vote | text | checked: agree or disagree |
+
+The composite primary key enforces one current choice per account/report.
+Service-only RPCs verify account confirmation and lock an eligible report
+before setting, switching or removing a vote. Counts are derived, not mutable
+increment counters. Vote writes do not update report or location rows, scores
+or summary sources. Existing votes remain when a report is unpublished, but
+their counts are hidden until it is republished.
+
 ## Public read surfaces
 - `locations_public`: coordinates and cached aggregates. The app's location
   endpoint filters out rows with no approved reports.
 - `reports_public`: only `id`, `location_id`, `reporter_type`, `description`,
-  `incident_date`, `created_at`, filtered to published + reviewed + nonremoved.
+  `incident_date`, `created_at`, `agree_count`, `disagree_count`, filtered to
+  published + reviewed + nonremoved.
   No raw text, account/reviewer IDs, email, image path or signed URL.
 - `/api/locations/[id]/reports`: UUID-validated, latest 50 reviewed notes at
-  that location. Category and date are shown; author identities are not.
+  that location. Category, date and feedback counts are shown; author/voter
+  identities are not.
+- `/api/report-votes`: confirmed-account-only batched own selections (up to
+  50 IDs), with private/no-store responses; never a public voter list.
 
 ## Row Level Security after migration 0002
 - `reports`: authenticated authors can read their own raw records. Anonymous
@@ -79,6 +97,8 @@ Index: `CREATE INDEX ON locations USING GIST (geom);`
 - `profiles`: owners can read, but cannot update their own admin/banned flags.
 - `flags`: INSERT allowed for any authenticated user; SELECT/UPDATE restricted
   by the profile's `is_admin` flag. The product notice/appeal UI is not built.
+- `report_votes` (0005): no direct table access for anonymous, authenticated
+  or service roles. Only the server role may execute its security-definer RPCs.
 
 ## Rate limiting (planned, not yet enforced)
 - Plan: track submissions per `user_id` in a short-lived counter (e.g. Supabase
@@ -97,3 +117,9 @@ Postgres using a minimal predecessor schema. It checks anonymous reads,
 private columns, review/removal gating, legacy requeue, RPC restrictions and
 non-self-assignable admin roles. It does not exercise PostGIS or real
 Supabase Auth/Storage. A live backend smoke test is still required.
+
+Continue in numeric order through migrations 0003 (aggregate traffic), 0004
+(reviewed area summaries) and 0005 (note feedback). Their details are in
+handoffs 07, 11 and 12. Embedded PostgreSQL voting tests cover permissions,
+safe counts, unique set/switch/remove behavior and deletion cascades; actual
+multi-connection contention and live Supabase integration remain unverified.

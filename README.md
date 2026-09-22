@@ -30,6 +30,8 @@ choose a point on the map (or use the keyboard-accessible map-centre button),
 and save it. Pins, counts, and note text persist in this browser until
 **Reset preview**. Approval is simulated locally. Photos are not saved or
 uploaded; neither are accounts or identity details.
+Each note also has **Agreed / Disagreed** feedback. In local preview this
+simulates one browser voter; Reset preview clears both notes and votes.
 Production builds never enable this preview, and API writes still require
 a valid, email-confirmed Supabase user.
 
@@ -77,13 +79,15 @@ Read these in order for full context (each depends on the ones before it):
   Payment Links recommendation, wallet support, fees and alternatives.
 - [`docs/11-area-summaries-handoff.md`](docs/11-area-summaries-handoff.md) —
   500 m source selection, small-model generation, review and cache freshness.
+- [`docs/12-voting-handoff.md`](docs/12-voting-handoff.md) — confirmed-account
+  feedback, public counts, private own-vote state and browser-local simulation.
 - [`docs/13-azure-architecture-options.md`](docs/13-azure-architecture-options.md) —
   Azure hosting/Blob recommendation, database alternatives and cost caveats;
   deployment still requires explicit approval.
 
 Code is module-based under `src/modules/*`, one folder per domain concept
 (`scoring`, `locations`, `reports`, `moderation`, `map`, `auth`,
-`donations`, `dashboard`, `admin`, `analytics`, `seo`, `area-summaries`),
+`donations`, `dashboard`, `admin`, `analytics`, `seo`, `area-summaries`, `votes`),
 with domain-specific `types`, client `api`, optional
 `server/` (service-role-only logic), and `components/`. Shared, cross-module
 code lives in `src/lib` (env access, Supabase clients). Routes and API
@@ -102,13 +106,17 @@ npm install
 
 ### 2. Create a Supabase project
 1. Create a new project at [supabase.com](https://supabase.com) (free tier).
-2. Apply both migrations **in order**:
+2. Apply migrations **in numeric order**:
    [`0001_init.sql`](supabase/migrations/0001_init.sql), then
    [`0002_reviewed_public_notes.sql`](supabase/migrations/0002_reviewed_public_notes.sql).
    Then apply [`0003_aggregate_traffic.sql`](supabase/migrations/0003_aggregate_traffic.sql)
    for optional admin traffic counts; collection stays disabled until opted in.
    Apply [`0004_reviewed_area_summaries.sql`](supabase/migrations/0004_reviewed_area_summaries.sql)
-   for reviewed 500 m summaries. Apply migrations once, in numeric order.
+   for reviewed 500 m summaries, then
+   [`0005_report_votes.sql`](supabase/migrations/0005_report_votes.sql)
+   for public feedback counts and private confirmed-account voting.
+   Apply each migration once. Migration 0005 is required before deploying
+   this version against a configured backend.
    The second migration restricts public reads to reviewed notes, prevents
    self-assigned admin roles, and restricts location creation to the server.
    It intentionally requeues legacy published reports without review stamps
@@ -224,6 +232,17 @@ resource guard is 200 notes / 48,000 UTF-8 source bytes. Larger clusters need
 a future bounded batch-summarisation workflow. Local preview notes/photos
 are not sent to a model. No live inference has been performed in this
 session, and no model account or API key has been configured.
+
+### 7. Community feedback on approved notes
+
+Agreed / Disagreed counts are public. A confirmed account can have one vote
+per approved note: tap the selected choice to remove it, or the other choice
+to switch. Voter identities and the viewer's selection are never public.
+
+Votes are feedback only, not proof that a report is true. They do not change
+risk scores, report counts, evidence weights or the source set for summaries.
+Removed, unreviewed and rejected notes cannot receive new feedback.
+Per-account uniqueness is not an anti-bot or anti-brigading guarantee.
 
 ## Scripts
 ```bash

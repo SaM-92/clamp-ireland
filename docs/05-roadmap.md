@@ -1,4 +1,4 @@
-# Roadmap / Phased Backlog (v5 — admin, appeal guidance and discoverability)
+# Roadmap / Phased Backlog (v6 — reviewed summaries and note feedback)
 
 Depends on: 00-product-plan.md, 01-architecture.md, 02-data-model.md,
 03-scoring-algorithm.md, 04-legal-considerations.md.
@@ -17,11 +17,15 @@ only in chat history.
       opt-in collection, no visitor identity or raw event table
 - [x] `0004_reviewed_area_summaries.sql` — complete 500 m approved-source
       snapshots, private drafts, review, freshness and generation admission
+- [x] `0005_report_votes.sql` — unique confirmed-account feedback, private
+      own selections, safe public counts and atomic set/switch/remove
 - [x] Create GitHub repo under SaM-92 (`clamp-ireland`; initial scaffold pushed)
 - [ ] Supabase project actually created (dev) — migration has not been run
       against a real project yet
 - [ ] PWA plugin wired in (manifest.json placeholder exists, no icons/SW yet)
-- [ ] Vercel project linked, deploys on push to main
+- [x] Azure architecture consultation recorded in handoff 13
+- [ ] Owner approves the hosting/data architecture and deployment
+- [ ] Azure Blob storage adapter and infrastructure, after approval
 
 ## Phase 1 — Core map + auth (MVP walking skeleton)
 - [x] Email/password sign-in and one-time confirmation flow; optional Google
@@ -96,6 +100,8 @@ only in chat history.
       and 0.5 opacity; embedded Postgres publication/access policy checks
 - [x] Touch-phone workflows at 320/375/390/430px, landscape, reduced-height
       forms, map before list/stats, 16px fields and cooperative map gestures
+- [x] Agreed / Disagreed below each approved note; confirmed-account voting,
+      public counts, one-browser preview and Reset preview cleanup
 - [ ] Physical iPhone Safari / Android Chrome checks, including native
       keyboard, photo picker, location permission and installed PWA behavior
 - [ ] Password reset flow for live email/password accounts
@@ -122,7 +128,8 @@ public launch.
 Read `06-ui-handoff.md` before changing map assets, the design system,
 preview gating, or account flows. Handoffs 07-10 cover the admin dashboard,
 appeal guide, search eligibility and support-payment setup; handoff 11 covers
-500 m summaries. The app remains
+500 m summaries, handoff 12 covers feedback, and handoff 13 records the
+Azure architecture recommendation (not deployment approval). The app remains
 a prototype: these features do not complete the Phase 2/3 launch safeguards.
 
 ## Explicitly out of scope for MVP (revisit later if community grows)

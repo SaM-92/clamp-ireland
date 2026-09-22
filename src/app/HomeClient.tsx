@@ -14,6 +14,7 @@ import type { LocationSummary } from "@/modules/locations/types";
 import type { TransparencyStats } from "@/modules/dashboard/types";
 import { PlaceSearch } from "@/modules/map/components/PlaceSearch";
 import { LocationNotes } from "@/modules/reports/components/LocationNotes";
+import { clearPreviewVotes } from "@/modules/votes/preview";
 
 export function HomeClient({ initialStats, preview }: { initialStats: TransparencyStats; preview: boolean }) {
   const mapPanelRef = useRef<HTMLDivElement>(null);
@@ -79,12 +80,14 @@ export function HomeClient({ initialStats, preview }: { initialStats: Transparen
 
   function resetPreview() {
     try {
+      clearPreviewVotes();
       savePreviewReports([]);
       setPreviewReports([]);
+      setSelectedLocation(null);
       setLoadError(null);
       setMessage("Local preview cleared.");
     } catch {
-      setMessage("Could not clear preview storage. Check your browser storage permissions.");
+      setMessage("Could not completely clear preview storage. Check your browser storage permissions.");
     }
   }
 

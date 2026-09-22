@@ -1,3 +1,5 @@
+import type { VoteCounts } from "@/modules/votes/types";
+
 export type ReporterType = "victim" | "neighbour" | "witness";
 
 export const REPORTER_TYPES: ReporterType[] = ["victim", "neighbour", "witness"];
@@ -10,6 +12,7 @@ export interface PublicReport {
   description: string;
   incidentDate: string | null;
   createdAt: string;
+  voteCounts?: VoteCounts;
 }
 
 export interface SubmittedReport {
