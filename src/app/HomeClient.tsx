@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import Link from "next/link";
 import { Icon } from "@/lib/components/Icon";
 import { MapView } from "@/modules/map/components/MapView";
 import { CITIES, type MapFocus } from "@/modules/map/lib/mapStyle";
@@ -211,7 +210,7 @@ export function HomeClient({ initialStats, preview }: { initialStats: Transparen
           <h2 id="appeal-resource-title">Been clamped? Know your appeal options.</h2>
           <p>Our community reports do not submit an appeal. See the official two-stage process for the Republic of Ireland and keep an eye on the deadlines.</p>
         </div>
-        <Link href="/appeal" className="button button-surface">How to appeal <Icon name="arrow" /></Link>
+        <a href="https://www.nationaltransport.ie/vehicle-clamping-regulation/" className="button button-surface">How to appeal <Icon name="arrow" /></a>
       </section>
 
       <section id="how-it-works" className="how-it-works" aria-label="How it works">

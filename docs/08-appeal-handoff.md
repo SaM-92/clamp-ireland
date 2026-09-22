@@ -4,7 +4,11 @@
 
 - Route: `/appeal`, public and server-rendered; no account, form, client state
   or API dependency for guide content.
-- The parent can add navigation links separately. The guide links back to `/`.
+- Per the owner's updated preference, both "How to appeal" links on the home
+  page and footer go directly to
+  `https://www.nationaltransport.ie/vehicle-clamping-regulation/`.
+  The optional informational `/appeal` guide remains available and links
+  back to `/`; it is not an intermediate redirect for the main appeal links.
 - Page-local Next Metadata supplies the title and description. Wider SEO
   integration is outside this handoff.
 - `src/app/appeal/appeal.module.css` reuses the existing light semantic tokens
@@ -52,11 +56,7 @@ disclaimers. Layout checks cover 320px, 375px and 768px, no horizontal overflow,
 44px guide links and keyboard skip-link access. They do not submit official
 forms or test physical mobile devices.
 
-Implementation verification: ESLint passed and all seven focused Playwright
-tests passed against the local server, including the 375px layout.
-Repository-wide `npx tsc --noEmit --incremental false` was blocked by errors
-outside this ownership scope: `.next/dev/types/validator.ts` has an `/admin`
-layout route constraint mismatch, and
-`src/modules/admin/components/AdminDashboard.tsx:139` passes an unsupported
-`onDecisionSaved` prop. No appeal-file errors were reported; those unrelated
-files were not modified.
+Implementation verification: the focused browser suite covers the guide and
+direct NTA links. The integrated production build and full TypeScript check
+passed after the admin increment; temporary generated-route errors from
+parallel implementation are resolved. Live NTA forms are not submitted.

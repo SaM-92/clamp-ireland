@@ -3,6 +3,15 @@ import { expect, test } from "@playwright/test";
 test.describe("public clamping appeal guide", () => {
   test.use({ javaScriptEnabled: false });
 
+  test("homepage and footer appeal links go directly to the official NTA website", async ({ page }) => {
+    await page.goto("/");
+    const links = page.getByRole("link", { name: "How to appeal", exact: true });
+    await expect(links).toHaveCount(2);
+    for (const link of await links.all()) {
+      await expect(link).toHaveAttribute("href", "https://www.nationaltransport.ie/vehicle-clamping-regulation/");
+    }
+  });
+
   test("renders useful content and metadata without JavaScript or sign-in", async ({ page }) => {
     const response = await page.goto("/appeal");
     expect(response?.status()).toBe(200);
