@@ -1,6 +1,10 @@
 # Deployment preparation status
 
-Status: **release automation and AI integration approved for implementation; cloud deployment on hold**.
+Status: **Preparation verified; deployment blocked and on hold**.
+
+Cloud deployment: **on hold by explicit owner choice**. Azure validation
+assessed the prepared release path; missing production prerequisites prevent a
+`Validated` deployment status. No deployment or provisioning is authorized.
 
 ## Current preparation request
 
@@ -13,7 +17,79 @@ new model deployments, resource creation, role changes or database migrations.
 - [x] Inspect existing test, release, summary and account/report entry points.
 - [x] Inspect available deployments on the owner's existing AI resource read-only.
 - [x] Confirm preparation scope, live demonstration limits and moderation policy.
-- [ ] Implement and verify approved changes; document remaining release blockers.
+- [x] Implement approved changes and verify local builds, unit/SQL/release
+  contracts, synthetic live AI and both isolated Linux container runtimes.
+- [x] Finish hosted CI smoke validation and record deployment readiness blockers.
+
+## Implemented artifacts and local evidence
+
+- `.github/workflows/ci.yml`: PR/master test and production smoke gates.
+- `.github/workflows/release.yml`: manual tagged release; deployment requires
+  opt-in, a protected production environment and Azure OIDC.
+- `Dockerfile`: independent public/admin standalone targets.
+- `scripts/release`: validated tags/metadata, digest-only promotion, bounded
+  read-only smoke and durable sanitized attempt records.
+- `src/modules/ai`, `ai-demo`, `content-policy`: server-only Azure provider,
+  synthetic local demo and report/username admission checks.
+- Migration 0006 prepared, not applied.
+- Local verification: both final application builds pass; public/admin Linux
+  image builds and network-isolated container smoke pass. Unit/server, SQL and
+  release contracts pass. Integrated development coverage exposed a small-phone
+  banner regression and a production-only test selector; both were corrected
+  and focused regressions pass.
+- Real Azure synthetic summary and moderation calls succeeded using the
+  existing deployment and local CLI identity, within the ten-attempt approval.
+- Source milestones have been committed/pushed regularly. Hosted CI succeeded;
+  no manual release or deployment workflow has been dispatched.
+
+## Known deployment blockers
+
+Production targets are not provisioned/configured for this app. GitHub
+release/production environments, reviewer protection, OIDC and build/runtime
+settings still need owner-approved setup. Supabase, both real administrator
+identities, migrations, private photo-storage choice, production inference
+permissions, domains and privacy/launch approval remain unresolved. The
+workflow rejects missing configuration rather than provisioning resources or
+deploying an unconfigured success-shaped fallback.
+
+## All validation checks pass
+
+This overall deployment checkbox remains incomplete:
+
+- [x] Azure CLI installation verified.
+- [x] Authentication to the owner-approved subscription verified read-only.
+- [ ] Bicep compilation: no infrastructure template was requested/generated;
+  the pipeline promotes images to separately provisioned existing targets.
+- [ ] ARM template validation and what-if: not applicable to these image-only
+  artifacts; future provisioning requires a separate approved plan.
+- [x] Both independent Linux Docker builds and isolated container smoke pass.
+- [ ] Production target, Azure Policy and static role verification: blocked
+  until the owner approves/provisions targets and runtime/OIDC identities.
+- [x] GitHub CI executes the actual lint/unit/SQL/release and production gates.
+- [ ] GitHub release/production environments, protected reviewers, deployment
+  opt-in and required settings: absent, so deployment is deliberately denied.
+
+## 7. Validation Proof
+
+| Check | Actual command/evidence | Result |
+| --- | --- | --- |
+| CLI | `az version --output json` | Installed |
+| Authentication | `az account show` scoped to the approved subscription, state-only projection | Enabled; no default subscription changed |
+| App builds | `npm run build:all` | Public and private admin builds passed |
+| Unit/server | `npm run test:unit` | 74 passed, mocked transport/no paid inference |
+| SQL | `npm run test:sql` | 16 passed in PGlite; no live migrations |
+| Release controls | `npm run test:release` | 15 passed |
+| Linux packaging | `docker build --target public` and `--target admin`, synthetic build identity | Both built locally; no registry push |
+| Container execution | `node scripts/release/container-smoke.mjs` | Both passed with external networking disabled; test containers removed |
+| Hosted CI | GitHub Actions run `35754929186`, commit `287a0e3d3bce936fbd79129ae33bb77517019318` | Success, including 7 production browser smoke tests |
+| Source version | Annotated tag `v0.1.0` at the above CI-verified commit | Pushed; source tag is not a deployment claim |
+| Deployment prerequisites | GitHub environment/variable/secret names inspected read-only | No configured environments/required settings; deployment blocked |
+| Role templates | No IaC role assignments generated | Production roles unverified; no role changes authorized |
+
+Local Azure inference was verified separately using only fixed synthetic
+examples and the existing CLI identity. It does not establish managed-identity
+access in production. Backend identities, image storage and real user flows
+remain launch prerequisites. Do not invoke azure-deploy from this state.
 
 ## Proposed implementation scope
 

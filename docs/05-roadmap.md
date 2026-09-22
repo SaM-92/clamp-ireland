@@ -136,7 +136,8 @@ only in chat history.
 - [x] Separate public/admin standalone container packaging and build metadata
 - [x] GitHub PR/default-branch CI and manually dispatched release/deploy workflow
 - [x] Semantic source tags, digest-pinned promotion and per-attempt version records
-- [ ] Production build, container and GitHub-run verification of this integration
+- [x] Production builds, isolated Linux containers and hosted GitHub CI verified;
+      source baseline tagged `v0.1.0` (not a cloud deployment)
 - [ ] Configure release/production environments, reviewer protection and Azure OIDC
 - [ ] Provision/approve hosting, backend identities, private storage and domains
 - [ ] Apply reviewed migrations after owner approval

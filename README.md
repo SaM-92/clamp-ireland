@@ -124,6 +124,27 @@ Next.js build and shared domain modules.
 - Node.js 24 (the CI/container baseline)
 - A free [Supabase](https://supabase.com) account (for Postgres + Auth + Storage)
 
+## Tests and release preparation
+
+```powershell
+npm run test:unit
+npm run test:sql
+npm run test:release
+```
+
+GitHub Actions runs these gates, lint, both production builds and
+`npm run test:smoke` on pull requests and master pushes. Smoke uses isolated
+synthetic services, not real accounts or paid AI. Its build/smoke wrapper
+requires a clean checkout without local environment files; see handoff 15.
+The existing `npm run test:e2e` covers the running development preview.
+
+Source tag **`v0.1.0`** is the first CI-verified release-preparation baseline.
+The separate manual release workflow resolves a matching version tag, builds
+independent images and records commit/digests/outcomes. Deployment additionally
+requires explicit opt-in, protected approval, OIDC and configured existing
+Azure apps. Pushing code or a tag never deploys. **No Azure deployment has
+been performed.**
+
 ## Setup
 
 ### 1. Install dependencies

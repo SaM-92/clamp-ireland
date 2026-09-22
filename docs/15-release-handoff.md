@@ -1,6 +1,6 @@
 # Release foundations: preparation only
 
-No workflow was dispatched, image published, Azure application deployed, role
+No release/deployment workflow was dispatched, image published, Azure application deployed, role
 changed, secret written or migration applied as part of this preparation.
 The existing public and two-account private-admin applications remain separate.
 Production operation still requires the owner setup in handoffs 13 and 14.
@@ -235,8 +235,26 @@ and make a separately approved recovery decision using recorded digests.
 Cancellation/runner loss can prevent artifact upload; GitHub job/environment
 history remains, and actual resource state must be inspected privately.
 
-Local preparation verified unit/server, SQL, release safety contracts, scoped
-lint and workflow syntax with actionlint. Production builds, browser smoke,
-Docker execution, actual GitHub checks/protection, image publication, OIDC,
-Azure targets/TLS and real two-account operations still require integration
-verification by the parent/owner. This handoff does not claim those ran.
+Local preparation verified 74 unit/server, 16 SQL and 15 release contracts,
+lint, both final application builds and both Linux container builds/runtimes.
+The containers passed read-only smoke with networking disabled and were
+removed afterward. The integrated development run exposed a 320px preview
+banner regression and an incorrectly selected production-only test; both
+were fixed and the focused mobile/selector checks passed.
+
+Hosted GitHub CI run
+[`35754929186`](https://github.com/SaM-92/clamp-ireland/actions/runs/35754929186)
+succeeded for `287a0e3d3bce936fbd79129ae33bb77517019318`, including all test gates,
+both production builds, standalone isolation and seven production browser
+smoke tests. Annotated source tag `v0.1.0` points at that commit. This is a
+tested source baseline, not a published image or deployed application.
+
+The normal admin dev cache was recreated after mixed fixture/build runs
+produced stale 404s; the restored server returns sign-in 200, anonymous
+private API 403 and minimal health 200. Do not run the development fixture
+and normal admin dev server against the same generated directory concurrently.
+
+Read-only GitHub setup inspection found no release/production environments
+or required deployment settings. Environment protection, image publication,
+OIDC, Azure targets/TLS, runtime inference permissions, live migrations and
+real two-account operations still require separately approved owner setup.
