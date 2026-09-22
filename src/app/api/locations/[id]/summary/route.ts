@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { getAreaSummarySetup } from "@/modules/area-summaries/server/config";
+import { getPublicAreaSummarySetup } from "@/modules/area-summaries/server/config";
 import { AreaSummaryError } from "@/modules/area-summaries/server/errors";
 import { summaryErrorResponse, summaryPublicHeaders } from "@/modules/area-summaries/server/http";
 import { getPublicAreaSummary, getSummaryLocation } from "@/modules/area-summaries/server/repository";
@@ -12,7 +12,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
   try {
     const { id } = await params;
     if (!z.uuid().safeParse(id).success) throw new AreaSummaryError("invalid_location", "Invalid location.", 400);
-    const setup = getAreaSummarySetup();
+    const setup = getPublicAreaSummarySetup();
     let result: PublicSummaryResponse;
     if (setup.state !== "ready") {
       result = {

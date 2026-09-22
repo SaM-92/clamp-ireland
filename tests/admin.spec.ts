@@ -1,4 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
+import { adminBaseURL, authorizeAdmin } from "./helpers/admin";
+
+test.use({ baseURL: adminBaseURL });
 
 const id = "00000000-0000-4000-8000-000000000001";
 const locationId = "00000000-0000-4000-8000-000000000002";
@@ -26,6 +29,7 @@ test("admin API and moderation reject unauthenticated requests, even with previe
 });
 
 test("shared admin navigation includes summary review and fits a 320px phone", async ({ page }) => {
+  await authorizeAdmin(page);
   await page.setViewportSize({ width: 320, height: 812 });
   for (const [path, label] of [
     ["/admin", "Overview"],
@@ -35,55 +39,25 @@ test("shared admin navigation includes summary review and fits a 320px phone", a
     await page.goto(path);
     await expect(page.getByRole("link", { name: label, exact: true })).toHaveAttribute("aria-current", "page");
     await expect(page.getByRole("link", { name: "Area summaries", exact: true })).toHaveAttribute("href", "/admin/summaries");
-    await expect(page.getByRole("link", { name: "Back to map", exact: true })).toHaveAttribute("href", "/");
+    await expect(page.getByRole("link", { name: "Back to map", exact: true })).toHaveCount(0);
     await noOverflow(page);
   }
 });
 
-test("375px dashboard reads only existing local reports without writing or pretending photos exist", async ({ page }) => {
-  test.skip(process.env.PLAYWRIGHT_PRODUCTION === "true", "Development-only local preview.");
-  await page.setViewportSize({ width: 375, height: 812 });
+test("private pages never expose a local dashboard or bypass sign-in through browser data", async ({ page }) => {
   await page.addInitScript((report) => localStorage.setItem("clamp-local-preview-v1", JSON.stringify([report])), localReport);
-  const apiCalls: string[] = [];
-  page.on("request", (request) => { if (/\/api\/(admin|moderation|reports)/.test(request.url())) apiCalls.push(request.url()); });
-  await page.goto("/admin");
-  await expect(page.getByRole("heading", { name: /Local dashboard preview/ })).toBeVisible();
-  await expect(page.getByText(localReport.description)).toBeVisible();
-  const cards = page.getByRole("definition");
-  await expect(cards).toHaveText(["0", "1", "0", "1", "N/A"]);
-  await expect(page.getByText(/Photo selected during entry/)).toContainText("file was not retained");
-  await expect(page.getByRole("img", { name: /evidence/ })).toHaveCount(0);
-  await expect(page.getByRole("button", { name: /Approve|Reject/ })).toHaveCount(0);
-  await expect(page.locator('meta[name="robots"]')).toHaveAttribute("content", /noindex/);
-  await noOverflow(page);
-  expect(apiCalls).toEqual([]);
-  expect(await page.evaluate(() => JSON.parse(localStorage.getItem("clamp-local-preview-v1")!))).toEqual([localReport]);
-  await page.screenshot({ path: test.info().outputPath("admin-preview-375.png"), fullPage: true });
-});
-
-test("local preview has an honest empty state and surfaces corrupted storage", async ({ page }) => {
-  test.skip(process.env.PLAYWRIGHT_PRODUCTION === "true", "Development-only local preview.");
-  await page.goto("/admin");
-  await expect(page.getByText(/No local test reports yet/)).toBeVisible();
-  await page.evaluate(() => localStorage.setItem("clamp-local-preview-v1", "invalid-json"));
-  await page.reload();
-  await expect(page.getByRole("main").getByRole("alert")).toBeVisible();
-  await expect(page.getByRole("definition")).toHaveCount(0);
-  await expect(page.getByText(/No local test reports yet/)).toHaveCount(0);
-});
-
-test("production ignores browser preview data and requires live administrator sign-in", async ({ page }) => {
-  test.skip(process.env.PLAYWRIGHT_PRODUCTION !== "true", "Run against an existing production server; no build is started by this suite.");
-  await page.addInitScript((report) => localStorage.setItem("clamp-local-preview-v1", JSON.stringify([report])), localReport);
-  await page.goto("/admin?preview=true");
-  await expect(page.getByRole("link", { name: "Sign in as an administrator" })).toBeVisible();
-  await expect(page.getByText(localReport.description)).toHaveCount(0);
-  await expect(page.getByRole("heading", { name: /Local dashboard preview/ })).toHaveCount(0);
-  await expect(page.getByRole("definition")).toHaveCount(0);
+  for (const path of ["/admin?preview=true", "/admin/moderation", "/admin/summaries"]) {
+    await page.goto(path);
+    await expect(page).toHaveURL(/\/auth\/sign-in$/);
+    await expect(page.getByRole("heading", { name: "Administrator sign-in" })).toBeVisible();
+    await expect(page.getByText(localReport.description)).toHaveCount(0);
+    await expect(page.getByRole("definition")).toHaveCount(0);
+    await expect(page.getByRole("button", { name: /register|create account/i })).toHaveCount(0);
+  }
 });
 
 test("live overview shows real API counts and refreshes after a mocked review", async ({ page }) => {
-  test.skip(process.env.PLAYWRIGHT_PRODUCTION !== "true", "Requires preview-disabled server.");
+  await authorizeAdmin(page);
   let approved = false;
   await page.route("**/api/admin/overview", (route) => route.fulfill({ json: {
     pending: approved ? 0 : 1, published: approved ? 8 : 7, rejected: 2, totalReports: 10, totalUsers: 4,
@@ -105,15 +79,14 @@ test("live overview shows real API counts and refreshes after a mocked review", 
 
 test("moderation offers sign-in guidance without leaking a queue", async ({ page }) => {
   await page.goto("/admin/moderation");
-  await expect(page.getByRole("main").getByRole("alert")).toContainText("Sign in as an admin");
-  await expect(page.getByRole("link", { name: "Sign in as an administrator" })).toHaveAttribute("href", "/auth/sign-in");
-  await expect(page.getByRole("textbox")).toHaveCount(0);
+  await expect(page).toHaveURL(/\/auth\/sign-in$/);
+  await expect(page.getByRole("heading", { name: "Administrator sign-in" })).toBeVisible();
+  await expect(page.getByLabel("Public note after review")).toHaveCount(0);
   await expect(page.locator('meta[name="robots"]')).toHaveAttribute("content", /noindex/);
-  await page.getByRole("link", { name: "Overview", exact: true }).click();
-  await expect(page).toHaveURL(/\/admin$/);
 });
 
 test("375px review supports editing, confirmation reset, approval, rejection and keyboard access", async ({ page }) => {
+  await authorizeAdmin(page);
   await page.setViewportSize({ width: 375, height: 812 });
   const decisions: unknown[] = [];
   await page.route("**/api/moderation/reports", (route) => route.fulfill({ json: [
@@ -146,6 +119,7 @@ test("375px review supports editing, confirmation reset, approval, rejection and
 });
 
 test("photo signing and image load failures block approval; reload recovers safely", async ({ page }) => {
+  await authorizeAdmin(page);
   await page.setViewportSize({ width: 375, height: 812 });
   let signingFailed = true;
   let imageFailed = true;
@@ -177,6 +151,7 @@ test("photo signing and image load failures block approval; reload recovers safe
 });
 
 test("queue and decision errors are explicit, retryable and retain unsaved wording", async ({ page }) => {
+  await authorizeAdmin(page);
   let failed = true;
   await page.route("**/api/moderation/reports", (route) => route.fulfill(failed
     ? { status: 500, json: { error: "offline" } }

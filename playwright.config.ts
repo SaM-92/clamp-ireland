@@ -5,6 +5,12 @@ export default defineConfig({
   fullyParallel: false,
   workers: 1,
   timeout: 60_000,
+  webServer: {
+    command: "node tests/helpers/admin-test-server.mjs",
+    url: "http://127.0.0.1:3016/auth/sign-in",
+    reuseExistingServer: false,
+    timeout: 120_000,
+  },
   use: {
     baseURL: process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost:3001",
     browserName: "chromium",

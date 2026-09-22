@@ -8,7 +8,7 @@ import {
 } from "../types";
 import { requireAreaSummarySetup } from "./config";
 import { AreaSummaryError } from "./errors";
-import { readBoundedJson } from "./json";
+import { readBoundedJson } from "@/lib/server/readBoundedJson";
 
 const responseSchema = z.object({
   status: z.string(),

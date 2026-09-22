@@ -3,9 +3,6 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { z } from "zod";
-import { isSupabaseConfigured } from "@/lib/env";
-import { createBrowserClient } from "@/lib/supabase/client";
-import { getAccessToken } from "@/modules/auth/lib/supabaseAuth";
 import {
   adminSummaryResponseSchema, summarySentenceSchema,
   type SummarySetup, type SummaryWorkspace,
@@ -22,10 +19,9 @@ class WorkspaceError extends Error {
 }
 
 async function adminRequest(url: string, signal: AbortSignal, init: RequestInit = {}) {
-  const token = await getAccessToken();
   const response = await fetch(url, {
-    ...init, signal, cache: "no-store",
-    headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+    ...init, signal, cache: "no-store", credentials: "same-origin",
+    headers: { "Content-Type": "application/json" },
   });
   if (response.status === 401 || response.status === 403) {
     throw new WorkspaceError("Sign in as an admin. Your session ended or administrator access is unavailable.", response.status);
@@ -73,16 +69,6 @@ export function AdminSummaryWorkspace({ initialSetup }: { initialSetup: SummaryS
   }
 
   useEffect(() => {
-    if (!isSupabaseConfigured) return;
-    const { data } = createBrowserClient().auth.onAuthStateChange(() => {
-      serial.current++; active.current?.abort();
-      clearPrivate(); setLocations([]); setLocationId(""); setBusy(false);
-      setRevision((value) => value + 1);
-    });
-    return () => data.subscription.unsubscribe();
-  }, []);
-
-  useEffect(() => {
     const requestSerial = serial;
     const pendingRequest = active;
     const current = ++serial.current;
@@ -99,7 +85,7 @@ export function AdminSummaryWorkspace({ initialSetup }: { initialSetup: SummaryS
         ));
         let choices: LocationChoice[] | undefined;
         if (!locationId && data.setup.state === "ready") {
-          const response = await fetch("/api/locations", { cache: "no-store", signal: controller.signal });
+          const response = await fetch("/api/admin/locations", { cache: "no-store", credentials: "same-origin", signal: controller.signal });
           if (!response.ok) throw new Error("Could not load real locations. Reload to retry.");
           choices = locationsSchema.parse(await response.json());
         }

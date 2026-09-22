@@ -4,7 +4,6 @@ import path from "node:path";
 import { createRequire } from "node:module";
 import { runInNewContext } from "node:vm";
 import ts from "typescript";
-import { isAdminPreviewEnabled } from "../src/modules/admin/lib/preview";
 import { adminOverviewSchema } from "../src/modules/admin/types";
 import { pendingReportsSchema } from "../src/modules/moderation/types";
 
@@ -25,14 +24,6 @@ function loadServer<T>(file: string, dependencies: Record<string, unknown>, erro
   return commonJs.exports as T;
 }
 
-test("admin preview is only enabled in development with missing public configuration", () => {
-  for (const environment of ["development", "production", "test", undefined]) {
-    for (const configured of [true, false]) {
-      expect(isAdminPreviewEnabled(environment, configured)).toBe(environment === "development" && !configured);
-    }
-  }
-});
-
 test("overview route gates all reads through real requireAdmin and never substitutes zero on failure", async () => {
   let user: { id: string } | null = null;
   let admin = false;
@@ -41,17 +32,21 @@ test("overview route gates all reads through real requireAdmin and never substit
   const errors: unknown[] = [];
   const auth = loadServer<typeof import("../src/modules/auth/lib/requireAdmin")>(
     "src/modules/auth/lib/requireAdmin.ts", {
+      "./adminSession": {
+        adminSessionSettings: () => ({ configured: true, ids: ["ordinary-verified-user"] }),
+        isAdminSameOrigin: () => true,
+      },
       "@/lib/supabase/server": {
         getUserFromRequest: async () => user,
         createServiceRoleClient: () => ({
-          from: () => ({ select: () => ({ eq: () => ({ single: async () => ({ data: { is_admin: admin } }) }) }) }),
+          from: () => ({ select: () => ({ eq: () => ({ single: async () => ({ data: { is_admin: admin, is_banned: false } }) }) }) }),
         }),
       },
     },
   );
   const counts = { pending: 7, published: 11, rejected: 3, totalReports: 21, totalUsers: 6 };
-  const route = loadServer<typeof import("../src/app/api/admin/overview/route")>(
-    "src/app/api/admin/overview/route.ts", {
+  const route = loadServer<typeof import("../apps/admin/src/app/api/admin/overview/route")>(
+    "apps/admin/src/app/api/admin/overview/route.ts", {
       "@/modules/auth/lib/requireAdmin": auth,
       "@/modules/admin/server/overview": {
         getAdminOverview: async () => {
@@ -62,7 +57,7 @@ test("overview route gates all reads through real requireAdmin and never substit
       },
     }, errors,
   );
-  const request = new Request("http://localhost/api/admin/overview");
+  const request = new Request("http://localhost/api/admin/overview", { headers: { Authorization: "Bearer fixture" } });
   expect((await route.GET(request)).status).toBe(403);
   user = { id: "ordinary-verified-user" };
   expect((await route.GET(request)).status).toBe(403);

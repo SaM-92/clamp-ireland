@@ -1,24 +1,36 @@
 import "server-only";
 import { createServiceRoleClient, getUserFromRequest } from "@/lib/supabase/server";
+import { NextRequest } from "next/server";
+import { adminSessionSettings, isAdminSameOrigin } from "./adminSession";
 
 /**
- * Verifies the request's bearer token belongs to a signed-in user AND that
- * user's `profiles.is_admin` flag is set. Used to gate the moderation
- * endpoints — see docs/00-product-plan.md, "human-in-the-loop image
- * review". There is no self-service admin signup; grant `is_admin` by hand
- * in the database for now (small trusted-operator scale).
+ * Every admin page and API requires the explicit two-account allowlist,
+ * confirmed identity and a non-banned administrator profile.
  */
 export async function requireAdmin(request: Request): Promise<{ id: string } | null> {
-  const user = await getUserFromRequest(request);
-  if (!user) return null;
+  const settings = adminSessionSettings();
+  if (!settings.configured || !settings.ids) return null;
+  let identityRequest = request;
+  if (!request.headers.has("authorization")) {
+    if (!["GET", "HEAD"].includes(request.method) && !isAdminSameOrigin(request)) return null;
+    const cookie = new NextRequest(request.url, { headers: request.headers }).cookies.get(settings.cookieName)?.value;
+    if (!cookie) return null;
+    identityRequest = new Request(request.url, { headers: { Authorization: `Bearer ${cookie}` } });
+  }
+  const user = await getUserFromRequest(identityRequest);
+  if (!user || !settings.ids.includes(user.id)) return null;
 
   const supabase = createServiceRoleClient();
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from("profiles")
-    .select("is_admin")
+    .select("is_admin, is_banned")
     .eq("id", user.id)
     .single();
 
-  if (!data?.is_admin) return null;
+  if (error) {
+    console.error("[Admin access] profile lookup failed", error.code);
+    return null;
+  }
+  if (data?.is_admin !== true || data.is_banned !== false) return null;
   return user;
 }

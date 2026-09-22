@@ -191,13 +191,15 @@ test.describe("unconfigured local server SEO", () => {
   test("protects admin/auth responses with noindex headers and metadata", async ({ page, request }) => {
     for (const path of ["/auth/sign-in", "/admin", "/admin/moderation"]) {
       const response = await page.goto(path);
-      expect(response?.status()).toBe(200);
+      expect(response?.status()).toBe(path.startsWith("/admin") ? 404 : 200);
       expect(response?.headers()["x-robots-tag"]).toBe(NOINDEX_HEADER);
-      await expect(page.locator('meta[name="robots"]')).toHaveAttribute("content", /noindex/);
+      const robots = page.locator('meta[name="robots"]');
+      expect(await robots.count()).toBeGreaterThan(0);
+      for (const tag of await robots.all()) await expect(tag).toHaveAttribute("content", /noindex/);
       await expect(page.locator('link[rel="canonical"]')).toHaveCount(0);
     }
     const api = await request.get("/api/admin/overview");
-    expect(api.status()).toBe(403);
+    expect(api.status()).toBe(404);
     expect(api.headers()["x-robots-tag"]).toBe(NOINDEX_HEADER);
   });
 

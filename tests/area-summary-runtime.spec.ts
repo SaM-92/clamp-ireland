@@ -42,6 +42,8 @@ function runtime(overrides: Record<string, unknown> = {}, globals: Record<string
   const environment = {
     ENABLE_AREA_SUMMARIES: true, OPENAI_API_KEY: "mock-key-not-a-credential",
     SUPABASE_SERVICE_ROLE_KEY: "mock-service-key",
+    ADMIN_ALLOWED_USER_IDS: `${uuid},${adminId}`,
+    ADMIN_SITE_URL: "http://localhost",
   };
   const logs: unknown[][] = [];
   const cache = new Map<string, unknown>();
@@ -83,8 +85,8 @@ function runtime(overrides: Record<string, unknown> = {}, globals: Record<string
 
 const providerPath = path.join("src", "modules", "area-summaries", "server", "provider.ts");
 const servicePath = path.join("src", "modules", "area-summaries", "server", "service.ts");
-const adminPath = path.join("src", "app", "api", "admin", "area-summaries", "route.ts");
-const reviewPath = path.join("src", "app", "api", "admin", "area-summaries", "[id]", "route.ts");
+const adminPath = path.join("apps", "admin", "src", "app", "api", "admin", "area-summaries", "route.ts");
+const reviewPath = path.join("apps", "admin", "src", "app", "api", "admin", "area-summaries", "[id]", "route.ts");
 const publicPath = path.join("src", "app", "api", "locations", "[id]", "summary", "route.ts");
 
 test("Responses fetch uses exactly gpt-5-mini, strict text.format, all notes and no private metadata", async () => {
@@ -211,7 +213,7 @@ test("admin routes use the real auth gate; disabled/no-key/invalid/unchecked req
     "@/lib/supabase/server": {
       getUserFromRequest: async () => user,
       createServiceRoleClient: () => ({
-        from: () => ({ select: () => ({ eq: () => ({ single: async () => ({ data: { is_admin: isAdmin } }) }) }) }),
+        from: () => ({ select: () => ({ eq: () => ({ single: async () => ({ data: { is_admin: isAdmin, is_banned: false } }) }) }) }),
       }),
     },
     "@/modules/area-summaries/server/service": {
@@ -223,10 +225,10 @@ test("admin routes use the real auth gate; disabled/no-key/invalid/unchecked req
       reviewAreaSummary: async (...args: unknown[]) => { actions.push(args); },
     },
   });
-  const route = rt.load<typeof import("../src/app/api/admin/area-summaries/route")>(adminPath);
-  const review = rt.load<typeof import("../src/app/api/admin/area-summaries/[id]/route")>(reviewPath);
+  const route = rt.load<typeof import("../apps/admin/src/app/api/admin/area-summaries/route")>(adminPath);
+  const review = rt.load<typeof import("../apps/admin/src/app/api/admin/area-summaries/[id]/route")>(reviewPath);
   const req = (method: string, data: unknown) => new Request("http://localhost/api/admin/area-summaries", {
-    method, body: JSON.stringify(data),
+    method, body: JSON.stringify(data), headers: { Authorization: "Bearer fixture" },
   });
   for (const signedIn of [false, true]) {
     user = signedIn ? { id: adminId } : null;
@@ -242,7 +244,7 @@ test("admin routes use the real auth gate; disabled/no-key/invalid/unchecked req
   expect(actions).toEqual([]);
   rt.environment.OPENAI_API_KEY = "mock";
   expect((await route.POST(new Request("http://localhost/api/admin/area-summaries", {
-    method: "POST", body: "not-json",
+    method: "POST", body: "not-json", headers: { Authorization: "Bearer fixture" },
   }))).status).toBe(400);
   expect((await route.POST(req("POST", { locationId: uuid, padding: "x".repeat(4096) }))).status).toBe(400);
   expect((await route.POST(req("POST", { locationId: uuid, model: "other" }))).status).toBe(400);
@@ -278,10 +280,10 @@ test("public GET has no generation dependency, no-store safe projection, honest 
   const read = () => route.GET(new Request("http://localhost"), { params: Promise.resolve({ id: uuid }) });
   rt.environment.ENABLE_AREA_SUMMARIES = false;
   expect(await (await read()).json()).toMatchObject({ state: "disabled" });
-  rt.environment.ENABLE_AREA_SUMMARIES = true; rt.environment.OPENAI_API_KEY = "";
-  expect(await (await read()).json()).toMatchObject({ state: "unconfigured" });
   expect(reads).toBe(0);
-  rt.environment.OPENAI_API_KEY = "mock";
+  rt.environment.ENABLE_AREA_SUMMARIES = true;
+  rt.environment.OPENAI_API_KEY = "";
+  rt.environment.SUPABASE_SERVICE_ROLE_KEY = "";
   const response = await read();
   expect(response.headers.get("cache-control")).toBe("no-store");
   expect(await response.json()).toEqual({ state: "available", summary: {
@@ -289,6 +291,10 @@ test("public GET has no generation dependency, no-store safe projection, honest 
   } });
   value = null;
   expect(await (await read()).json()).toMatchObject({ state: "none" });
+  const missing = runtime({ "@/lib/env": { env: { ENABLE_AREA_SUMMARIES: true }, isSupabaseConfigured: false } });
+  const missingRoute = missing.load<typeof import("../src/app/api/locations/[id]/summary/route")>(publicPath);
+  expect(await (await missingRoute.GET(new Request("http://localhost"), { params: Promise.resolve({ id: uuid }) })).json())
+    .toMatchObject({ state: "unconfigured" });
 });
 
 test("generation reuses a fresh draft; forced regeneration saves only a new draft and releases admission lease on failure", async () => {

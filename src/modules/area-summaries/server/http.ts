@@ -1,9 +1,9 @@
 import "server-only";
 import { NextResponse } from "next/server";
 import { AreaSummaryError, safeSummaryError } from "./errors";
-import { readBoundedJson } from "./json";
+import { readBoundedJson } from "@/lib/server/readBoundedJson";
 
-export const summaryPrivateHeaders = { "Cache-Control": "private, no-store", Vary: "Authorization" };
+export const summaryPrivateHeaders = { "Cache-Control": "private, no-store", Vary: "Authorization, Cookie" };
 export const summaryPublicHeaders = { "Cache-Control": "no-store" };
 
 export function summaryErrorResponse(error: unknown, privateResponse = true) {

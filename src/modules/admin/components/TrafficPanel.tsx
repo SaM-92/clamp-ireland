@@ -1,26 +1,23 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { getAccessToken } from "@/modules/auth/lib/supabaseAuth";
 import { trafficSummarySchema, type TrafficSummary } from "@/modules/analytics/types";
 import styles from "./TrafficPanel.module.css";
 
-export function TrafficPanel({ preview = false }: { preview?: boolean }) {
+export function TrafficPanel() {
   const [summary, setSummary] = useState<TrafficSummary | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(!preview);
+  const [loading, setLoading] = useState(true);
   const [version, setVersion] = useState(0);
   useEffect(() => {
-    if (preview) return;
     const controller = new AbortController();
     async function load() {
       setLoading(true);
       setSummary(null);
       setError(null);
       try {
-        const token = await getAccessToken();
         const response = await fetch("/api/admin/traffic", {
-          headers: token ? { Authorization: `Bearer ${token}` } : {},
+          credentials: "same-origin",
           cache: "no-store", signal: controller.signal,
         });
         if (response.status === 401 || response.status === 403) throw new Error("Administrator access is required to read traffic totals. Sign in again.");
@@ -35,13 +32,13 @@ export function TrafficPanel({ preview = false }: { preview?: boolean }) {
     }
     void load();
     return () => controller.abort();
-  }, [preview, version]);
-  const disabled = preview || summary?.enabled === false;
+  }, [version]);
+  const disabled = summary?.enabled === false;
   return (
     <section className={styles.panel} aria-labelledby="traffic-heading">
       <div className={styles.heading}>
         <h2 id="traffic-heading">Pageviews (approximate)</h2>
-        {!preview && <button className="button button-surface" disabled={loading} onClick={() => setVersion((value) => value + 1)}>Refresh traffic</button>}
+        <button className="button button-surface" disabled={loading} onClick={() => setVersion((value) => value + 1)}>Refresh traffic</button>
       </div>
       {loading && <p role="status">Loading traffic totals...</p>}
       {error && <p className="form-error" role="alert">{error}</p>}

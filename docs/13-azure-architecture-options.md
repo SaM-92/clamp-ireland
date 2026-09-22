@@ -14,9 +14,13 @@ intentionally not recorded in this public handoff.
 
 - Separate resource group for ownership, cost attribution and access isolation.
   Resource groups themselves have no hosting fee.
-- Azure Container Apps Consumption for the existing Next.js server, starting
+- Separate Azure Container Apps Consumption deployments for the community
+  Next.js server and private admin Next.js server, starting
   with scale-to-zero and one maximum replica. Size after local/container
   measurement rather than assuming the smallest allocation is sufficient.
+  The later private-admin decision is implemented locally (handoff 14), not
+  deployed. Both apps consume the same subscription-level allowance; admin
+  compute/logging is an additional usage line, not assumed free.
 - Dedicated Standard StorageV2 **Hot LRS** account for private photo blobs.
   No anonymous blob access. Authorize the app with managed identity, and
   provide tightly scoped, short-lived moderator access rather than account

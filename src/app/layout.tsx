@@ -56,7 +56,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <span>Built for the community. Not for profit.</span>
           <nav className="footer-links" aria-label="Useful links">
             <a href="https://www.nationaltransport.ie/vehicle-clamping-regulation/">How to appeal</a>
-            <Link href="/admin">Admin dashboard</Link>
           </nav>
           <span>Community reports, not verified findings. Always check local parking signs.</span>
         </footer>

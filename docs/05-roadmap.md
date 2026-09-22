@@ -107,8 +107,11 @@ only in chat history.
 - [ ] Password reset flow for live email/password accounts
 - [ ] Installable PWA (manifest, icons, offline shell)
 - [ ] Share-a-location link (for warning friends before they park)
-- [x] `/admin`: protected overview and review workspace, read-only local
-      preview, explicit photo failures that block approval
+- [x] Separate admin application/build; no community-site admin links or
+      routes, server-side page/API allowlist for two confirmed admin accounts,
+      private cookie sessions, no unauthenticated admin preview
+- [x] Admin overview and review workspace; explicit photo failures block approval
+- [ ] Configure both real approved administrator accounts and deploy the private site
 - [x] Optional first-party aggregate pageviews in admin, disabled by default;
       privacy/consent and hosting-log review still required before activation
 - [x] Technical SEO/AEO: canonical domain validation, sitemap, crawler rules,
@@ -131,6 +134,7 @@ appeal guide, search eligibility and support-payment setup; handoff 11 covers
 500 m summaries, handoff 12 covers feedback, and handoff 13 records the
 Azure architecture recommendation (not deployment approval). The app remains
 a prototype: these features do not complete the Phase 2/3 launch safeguards.
+Handoff 14 supersedes earlier same-site admin and admin-preview instructions.
 
 ## Explicitly out of scope for MVP (revisit later if community grows)
 - Native mobile apps

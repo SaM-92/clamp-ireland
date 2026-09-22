@@ -46,10 +46,10 @@ The phone layout puts search and the map ahead of the report list and
 statistics. Touchscreen maps use two fingers to pan, allowing one-finger
 page scrolling. Forms and notes scroll within the available screen space.
 
-Open `/admin` for the dashboard (read-only browser-local preview without
-Supabase), or `/appeal` for the official-source Republic of Ireland appeal
-guide. The latter explains the two stages and deadlines; posting a community
-report is not an appeal.
+The public website has **no admin links, admin pages or administrative APIs**.
+Administration is a separate application; see setup step 5. There is no
+unauthenticated admin preview. `/appeal` remains the official-source Republic
+of Ireland guide; posting a community report is not an appeal.
 
 ## How it's organized
 Read these in order for full context (each depends on the ones before it):
@@ -84,6 +84,8 @@ Read these in order for full context (each depends on the ones before it):
 - [`docs/13-azure-architecture-options.md`](docs/13-azure-architecture-options.md) —
   Azure hosting/Blob recommendation, database alternatives and cost caveats;
   deployment still requires explicit approval.
+- [`docs/14-private-admin-handoff.md`](docs/14-private-admin-handoff.md) —
+  separate administration app, two-account access, private sessions and setup.
 
 Code is module-based under `src/modules/*`, one folder per domain concept
 (`scoring`, `locations`, `reports`, `moderation`, `map`, `auth`,
@@ -91,7 +93,9 @@ Code is module-based under `src/modules/*`, one folder per domain concept
 with domain-specific `types`, client `api`, optional
 `server/` (service-role-only logic), and `components/`. Shared, cross-module
 code lives in `src/lib` (env access, Supabase clients). Routes and API
-handlers live in `src/app`.
+handlers for the community website live in `src/app`. Administrative pages,
+sign-in and APIs live exclusively in `apps/admin/src/app`, with an independent
+Next.js build and shared domain modules.
 
 ## Prerequisites
 - Node.js 20+
@@ -159,12 +163,13 @@ Fill in:
   Supabase Auth. Put the Google OAuth client ID/secret in **Supabase**, not in
   browser variables; register the callback URL Supabase provides with Google.
   This is a Google OAuth client, not a Gmail API integration.
-- `OPENAI_API_KEY` — server-only key for optional GPT-5 mini area-summary
+- `OPENAI_API_KEY` — configure **only in the separate admin app**, for optional GPT-5 mini area-summary
   generation. Never expose it to browsers. Submission text softening remains
   heuristic-only; this key does not enable automatic moderation.
-- `ENABLE_AREA_SUMMARIES` — default `false`. After migration 0004, enable
-  explicitly to let admins request paid model-generated drafts. Public map
-  browsing never initiates model calls. Review the data-processing/privacy
+- `ENABLE_AREA_SUMMARIES` — default `false` in both apps. After migration
+  0004, enable on the public app to read reviewed summaries, and independently
+  on the admin app to permit paid draft generation. Public reads need neither
+  model credentials nor the service-role key. Review the data-processing/privacy
   notice before sending approved notes to the model provider.
 - `SITE_URL` — the actual public HTTPS origin, without a path, query or
   credentials. Leave blank locally; no guessed domain is emitted.
@@ -187,19 +192,29 @@ npm run dev
 ```
 Open [http://localhost:3000](http://localhost:3000).
 
-### 5. Becoming an admin
-A `profiles` row is created automatically for every new user (see the
-`on_auth_user_created` trigger in the migration). The admin gate
-(`src/modules/auth/lib/requireAdmin.ts`) checks that row's `is_admin` flag.
-There's no self-service admin signup by design — after signing in once, set
-`is_admin = true` for your user directly in the Supabase Table Editor/SQL
-Editor.
+### 5. Private administrator website
 
-Open `/admin` with that account for live operational counts, moderation and
-the traffic section; `/admin/moderation` is the dedicated review workspace.
-Without backend configuration, development offers only a clearly labelled
-read-only preview of this browser's existing test notes. It cannot review
-discarded preview photos or grant live admin access.
+Run `npm run dev:admin` separately from the community website. Its local URL
+is http://localhost:3003. Only the sign-in screen is public; private pages
+redirect before rendering without approved administrator access.
+
+Copy `apps/admin/.env.example` to `apps/admin/.env.local` and configure that
+app's backend independently. Set `ADMIN_ALLOWED_USER_IDS` to **exactly two
+distinct, confirmed Supabase user UUIDs**, and `ADMIN_SITE_URL` to its exact
+origin (HTTPS in deployment; loopback HTTP is allowed locally). Both profiles
+must also have `is_admin = true` and `is_banned = false`, assigned through
+trusted database administration. No public registration can grant access.
+Never commit these IDs or credentials, or use `NEXT_PUBLIC_` for the allowlist.
+
+The dedicated sign-in uses existing email/password accounts and an HttpOnly,
+host-only session cookie, not the community website's browser session.
+Sessions last at most one hour. Missing/malformed configuration denies all
+access, even in development; there is **no local admin preview**. The real
+backend and the two approved accounts have not been configured here.
+
+On the admin origin only, `/admin` contains counts and moderation,
+`/admin/moderation` the dedicated review queue, and `/admin/summaries`
+summary review. None of these paths or APIs is served by the public app.
 
 **Every report, including
 text-only reports, starts pending.** Edit the public wording, confirm that
@@ -215,7 +230,7 @@ pruned on subsequent traffic, not by an unattended scheduled job.
 
 ### 6. Optional nearby-area summaries
 
-`/admin/summaries` is the review workspace for one-sentence summaries of
+`/admin/summaries` on the separate admin website is the review workspace for one-sentence summaries of
 approved notes within **500 metres** of a selected reported spot. This does
 not change the **100 m map circles** or weighted risk scores. It is a
 radius query, not a chain that joins distant neighbouring areas.
@@ -247,8 +262,12 @@ Per-account uniqueness is not an anti-bot or anti-brigading guarantee.
 ## Scripts
 ```bash
 npm run dev     # start dev server
+npm run dev:admin # separate admin server on port 3003
 npm run build   # production build
+npm run build:admin # independent admin production build
+npm run build:all # build both applications
 npm run start   # run a production build
+npm run start:admin # run the admin production build
 npm run lint    # ESLint
 npm run test:e2e # browser regression checks against localhost:3001
 ```
@@ -267,9 +286,15 @@ Postgres tests exercise migration 0002's access rules; they do not validate
 Supabase Auth, Storage or PostGIS integration. See the UI handoff for
 production checks.
 
+Playwright starts an isolated admin test server on loopback port 3016 with
+a local mock identity/database transport. The real page and API guards run;
+this fixture is never part of either deployed app. Stop the admin dev server
+before running these tests, because both use the admin project's development
+build directory. The community preview can stay running on port 3001.
+
 ## Deploying
 **Azure deployment is not approved or performed.** The current recommendation
-is Container Apps Consumption plus private Azure Blob, retaining Supabase
+is separate public/admin Container Apps Consumption deployments plus private Azure Blob, retaining Supabase
 Free for data/auth. Blob integration is not implemented yet; the current
 storage adapter still uses Supabase Storage. See the architecture handoff
 above before creating resources. Shared Azure allowances mean this is not

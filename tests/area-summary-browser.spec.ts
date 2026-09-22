@@ -2,6 +2,7 @@ import { expect, test, type Page } from "@playwright/test";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import path from "node:path";
+import { adminUrl, authorizeAdmin } from "./helpers/admin";
 
 declare global {
   interface Window {
@@ -25,22 +26,23 @@ function workspace() {
   };
 }
 async function mockLocations(page: Page) {
-  await page.route("**/api/locations", (route) => route.fulfill({ json: [
+  await authorizeAdmin(page);
+  await page.route("**/api/admin/locations", (route) => route.fulfill({ json: [
     { id: uuid, lat: 53.2158, lng: -6.6669, reportCount: 2, riskScore: 20, riskLevel: "low" },
   ] }));
 }
 async function chooseLocation(page: Page) {
-  await page.goto("/admin/summaries");
+  await page.goto(adminUrl("/admin/summaries"));
   await page.getByRole("combobox", { name: "Choose a reported location" }).selectOption(uuid);
   await expect(page.getByRole("heading", { name: "Nearby source notes" })).toBeVisible();
 }
 
 test("summary routes reject unauthenticated generation/review and never expose a private workspace", async ({ request }) => {
-  const response = await request.get("/api/admin/area-summaries");
+  const response = await request.get(adminUrl("/api/admin/area-summaries"));
   expect(response.status()).toBe(403);
   expect(response.headers()["cache-control"]).toContain("no-store");
-  expect((await request.post("/api/admin/area-summaries", { data: { locationId: uuid } })).status()).toBe(403);
-  expect((await request.patch(`/api/admin/area-summaries/${draftId}`, {
+  expect((await request.post(adminUrl("/api/admin/area-summaries"), { data: { locationId: uuid } })).status()).toBe(403);
+  expect((await request.patch(adminUrl(`/api/admin/area-summaries/${draftId}`), {
     data: { action: "approve", sentence, sourceFingerprint: "a".repeat(64), reviewed: true },
   })).status()).toBe(403);
   expect((await request.get("/api/locations/not-a-uuid/summary")).status()).toBe(400);

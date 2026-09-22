@@ -118,8 +118,8 @@ test("admin traffic keeps authorization ahead of disabled status and aggregate r
   let reads = 0;
   let fail = false;
   const summary = { enabled: true, from: "2026-08-24", through: "2026-09-22", totalPageviews: 8, mobilePageviews: 3, days: [] };
-  const route = loadServer<typeof import("../src/app/api/admin/traffic/route")>(
-    "src/app/api/admin/traffic/route.ts", {
+  const route = loadServer<typeof import("../apps/admin/src/app/api/admin/traffic/route")>(
+    "apps/admin/src/app/api/admin/traffic/route.ts", {
       "@/modules/auth/lib/requireAdmin": { requireAdmin: async () => authorized ? { id: "admin" } : null },
       "@/modules/analytics/server/config": { isTrafficEnabled: () => enabled },
       "@/modules/analytics/server/repository": { getTrafficSummary: async () => { reads++; if (fail) throw new Error("offline"); return summary; } },
@@ -134,7 +134,7 @@ test("admin traffic keeps authorization ahead of disabled status and aggregate r
   enabled = true;
   const response = await route.GET(request);
   expect(response.headers.get("cache-control")).toBe("private, no-store");
-  expect(response.headers.get("vary")).toBe("Authorization");
+  expect(response.headers.get("vary")).toBe("Authorization, Cookie");
   expect(await response.json()).toEqual(summary);
   fail = true;
   const failed = await route.GET(request);
@@ -301,7 +301,7 @@ test("traffic table renders real daily and mobile-sized counts without 375px pag
       "./TrafficPanel.module.css": styles,
     },
   );
-  const markup = renderToStaticMarkup(component.TrafficPanel({}));
+  const markup = renderToStaticMarkup(component.TrafficPanel());
   await page.setViewportSize({ width: 375, height: 812 });
   await page.setContent(`<style>${readFileSync(path.resolve("src", "app", "globals.css"), "utf8")}
     ${readFileSync(path.resolve("src", "modules", "admin", "components", "TrafficPanel.module.css"), "utf8")}

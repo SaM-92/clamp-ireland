@@ -61,8 +61,8 @@ The public HTTP summary contains **only sentence, sourceCount, radiusMetres,
 generatedAt and reviewedAt**. It exposes no source notes, fingerprint, IDs,
 coordinates, reviewer identity, model key, photos or private provenance.
 
-The shared admin navigation links Overview, Moderation queue, Area summaries
-and the map. It does not bypass any workspace/API authorization.
+The separate admin app navigation links Overview, Moderation queue and Area
+summaries. All pages and APIs use the two-account gate; see handoff 14.
 
 ## Meaning and sources
 
@@ -228,7 +228,9 @@ service-role fallback. The public route does not import the generation service.
 Public UI text is cleared at the start of every revalidation and on selection
 changes, hidden tabs, failures or no-current-summary results. Reads revalidate
 every 30 seconds while visible, on visibility changes and on same-browser
-summary-review broadcasts; each read has a 10-second timeout. No summary is
+same-origin summary-review broadcasts; each read has a 10-second timeout.
+The separate admin origin cannot broadcast to the public origin, so public
+freshness relies on polling/visibility and the server fingerprint gate. No summary is
 persisted to local storage. This prevents indefinite stale display, not
 instantaneous cross-user push invalidation: a note moderation change can occur
 between polls. Every database read uses current statement-snapshot visibility.
@@ -258,12 +260,13 @@ Owned implementation files:
 
 - `src/modules/area-summaries/types.ts`
 - `src/modules/area-summaries/contract.ts`
-- `src/modules/area-summaries/server/{config,errors,http,json,provider,repository,service}.ts`
+- `src/modules/area-summaries/server/{config,errors,http,provider,repository,service}.ts`
+- `src/lib/server/readBoundedJson.ts`
 - `src/modules/area-summaries/components/{AdminSummaryWorkspace,NearbySummary}.tsx`
 - `src/modules/area-summaries/components/AreaSummaries.module.css`
-- `src/app/admin/summaries/page.tsx`
-- `src/app/api/admin/area-summaries/route.ts`
-- `src/app/api/admin/area-summaries/[id]/route.ts`
+- `apps/admin/src/app/admin/summaries/page.tsx`
+- `apps/admin/src/app/api/admin/area-summaries/route.ts`
+- `apps/admin/src/app/api/admin/area-summaries/[id]/route.ts`
 - `src/app/api/locations/[id]/summary/route.ts`
 - `src/modules/reports/components/LocationNotes.tsx`
 - `supabase/migrations/0004_reviewed_area_summaries.sql`
@@ -282,8 +285,13 @@ The final combined run passed 33 tests (32 area-summary tests plus the existing
 public-note policy regression); the separate existing 100m/50%-opacity zone
 regression also passed.
 
+The public read setup now requires only its opt-in flag and anonymous backend
+configuration, not generation credentials. `OPENAI_API_KEY` belongs only to
+the separate admin runtime. Admin generation retains all original key, resource
+and review gates.
+
 **Not claimed:** live provider inference/quality, real PostGIS geodesic boundary
-execution, deployed migration, or final integrated production build. Before
-release, the parent must apply migrations, exercise actual PostGIS 499m/500m/
-501m and overlap fixtures, add the shared navigation link and run the final
-build/production suite. Live model quality/cost checks require separate approval.
+execution or deployed migrations. Once backend work is approved, exercise real
+499m/500m/501m and overlap fixtures before release. Live model quality/cost checks
+and deployment require separate approval. Handoff 14 records the later split
+and independent production-build verification.

@@ -5,9 +5,13 @@
   "scripts": {
     "predev": "node scripts/prepare-map-assets.mjs",
     "dev": "next dev",
+    "dev:admin": "next dev apps/admin --port 3003",
     "prebuild": "node scripts/prepare-map-assets.mjs",
     "build": "next build",
+    "build:admin": "next build apps/admin",
+    "build:all": "npm run build && npm run build:admin",
     "start": "next start",
+    "start:admin": "next start apps/admin --port 3003",
     "lint": "eslint",
     "test:e2e": "playwright test"
   },

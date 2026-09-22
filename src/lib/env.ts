@@ -19,6 +19,8 @@ export const env = {
   ENABLE_TRAFFIC_ANALYTICS: process.env.ENABLE_TRAFFIC_ANALYTICS === "true",
   ENABLE_AREA_SUMMARIES: process.env.ENABLE_AREA_SUMMARIES === "true",
   OPENAI_API_KEY: process.env.OPENAI_API_KEY ?? "",
+  ADMIN_ALLOWED_USER_IDS: process.env.ADMIN_ALLOWED_USER_IDS ?? "",
+  ADMIN_SITE_URL: process.env.ADMIN_SITE_URL ?? "",
 } as const;
 
 export const isSupabaseConfigured = Boolean(

@@ -2,9 +2,6 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { isSupabaseConfigured } from "@/lib/env";
-import { createBrowserClient } from "@/lib/supabase/client";
-import { getAccessToken } from "@/modules/auth/lib/supabaseAuth";
 import { pendingReportsSchema, type PendingReport } from "../types";
 import styles from "./ModerationQueue.module.css";
 
@@ -74,24 +71,14 @@ export function ModerationQueue({ onDecisionSaved }: { onDecisionSaved?: () => v
   const [message, setMessage] = useState<string | null>(null);
   const [accessDenied, setAccessDenied] = useState(false);
   useEffect(() => {
-    if (!isSupabaseConfigured) return;
-    const { data } = createBrowserClient().auth.onAuthStateChange(() => {
-      setReports([]);
-      setMessage(null);
-      setVersion((value) => value + 1);
-    });
-    return () => data.subscription.unsubscribe();
-  }, []);
-  useEffect(() => {
     let cancelled = false;
     async function load() {
       setLoading(true);
       setError(null);
       setAccessDenied(false);
       try {
-        const token = await getAccessToken();
         const response = await fetch("/api/moderation/reports", {
-          headers: token ? { Authorization: `Bearer ${token}` } : {}, cache: "no-store",
+          credentials: "same-origin", cache: "no-store",
         });
         if (response.status === 401 || response.status === 403) {
           if (!cancelled) setAccessDenied(true);
@@ -114,10 +101,10 @@ export function ModerationQueue({ onDecisionSaved }: { onDecisionSaved?: () => v
   }, [version]);
 
   async function act(id: string, decision: Decision) {
-    const token = await getAccessToken();
     const response = await fetch(`/api/moderation/reports/${id}`, {
       method: "PATCH",
-      headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify(decision),
     });
     if (!response.ok) {

@@ -1,19 +1,23 @@
 # Admin dashboard: steps 1 and 2
 
+**Current access boundary:** handoff 14 supersedes the original same-site and
+read-only-preview design. All routes below now exist only in `apps/admin`,
+not on the community website.
+
 ## Routes and ownership
 
 - `/admin`: minimal, responsive overview and the existing moderation queue.
-- `/admin/moderation`: dedicated review workspace; both pages have Overview,
-  Moderation queue and Back to map links, and inherit `noindex, nofollow,
+- `/admin/moderation`: dedicated review workspace; navigation includes Overview,
+  Moderation queue and Area summaries, and inherits `noindex, nofollow,
   noarchive` metadata from the admin layout.
 - `GET /api/admin/overview`: `requireAdmin` runs before any count query.
-  Responses are `private, no-store` and vary by Authorization. Missing/non-admin
+  Responses are `private, no-store` and vary by Authorization and Cookie. Missing/non-admin
   access returns 403; configuration/database failures return 500, never
   success-shaped zero counts. No service-role client enters browser code.
 
 UI/server code lives in `src/modules/admin`; new styles are CSS modules.
-The site's footer links to `/admin`. Shared global styling stays separate
-from the dashboard's CSS modules.
+The public site's footer has no administration link. Shared visual styles
+do not imply shared routes or access.
 
 ## Counts and configuration
 
@@ -34,10 +38,12 @@ not analytics.
 Live configuration uses existing `NEXT_PUBLIC_SUPABASE_URL`,
 `NEXT_PUBLIC_SUPABASE_ANON_KEY` and server-only `SUPABASE_SERVICE_ROLE_KEY`.
 Apply migrations 0001 and 0002, retain the private `report-images` bucket,
-and manually grant `profiles.is_admin` to trusted operators. Sign in using a
-confirmed Supabase account. There is no self-service admin grant.
+and manually grant `profiles.is_admin` to the two trusted operators. Both must
+be non-banned and listed by UUID in server-only `ADMIN_ALLOWED_USER_IDS` on the
+admin app. See handoff 14 for `ADMIN_SITE_URL` and private email/password sign-in.
+An admin flag alone is insufficient; there is no self-service admin grant.
 
-Unauthenticated live pages expose only the shell and sign-in guidance.
+Unauthenticated private pages redirect before rendering to the sign-in page.
 The dashboard loads its queue only after the overview API authorizes access.
 Auth changes clear private UI state. API authorization remains authoritative;
 there is no preview bypass on any endpoint.
@@ -62,18 +68,12 @@ No image-redaction tool exists: reject evidence requiring redaction. Human
 confirmation is still required; the system cannot prove a person examined an
 image. Public report endpoints and existing public reports are unchanged.
 
-## Read-only local preview
+## Local access
 
-Only the server's `development && !isSupabaseConfigured` condition enables
-the dashboard preview. It reads the existing `clamp-local-preview-v1` browser
-storage through its validator, without creating or changing reports. There
-are no fabricated incidents, admin mutations, account totals or image
-thumbnails. All local reports are labelled simulated approval; pending and
-rejected counts are zero because this storage has no moderation workflow.
-User profiles are `N/A`. Photo files were not retained during entry, which is
-explained explicitly. Empty, invalid and inaccessible storage states are
-distinct. Production ignores this storage and query-string preview flags.
-The dedicated moderation route always uses protected live APIs.
+The previous read-only admin preview has been removed. Neither development
+mode, missing credentials, browser report storage nor a preview query string
+grants dashboard access. The community map's explicitly local reporting demo
+remains available, but is unrelated to administrator authorization.
 
 ## Verification and limits
 
@@ -83,7 +83,8 @@ With the existing development server on port 3001:
 npx playwright test 'admin.*\.spec\.ts' --reporter=line
 ```
 
-Server tests execute actual route/repository modules with external
+The historical step-1 test results below predate separation; use handoff 14
+for the current setup and isolation checks. Server tests execute actual route/repository modules with external
 auth/database/storage dependencies mocked: admin/non-admin gating, exact
 count semantics, missing/error counts, signing failures and the production
 preview policy matrix. Browser tests cover real unauthenticated API rejection,
