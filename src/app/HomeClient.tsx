@@ -143,8 +143,10 @@ export function HomeClient({ initialStats, preview, aiDemo = false }: { initialS
       {preview && (
         <div className="preview-banner">
           <span><strong>Local preview</strong> No sign-in needed. Test reports stay in this browser, not on the public map.</span>
-          {aiDemo && <a className="text-button" href="/dev/ai-demo">Try the AI demo</a>}
-          <button className="text-button" onClick={resetPreview}>Reset preview</button>
+          <div className="preview-actions">
+            {aiDemo && <a className="text-button" href="/dev/ai-demo">Try the AI demo</a>}
+            <button className="text-button" onClick={resetPreview}>Reset preview</button>
+          </div>
         </div>
       )}
       <TransparencySignal stats={visibleStats} />
