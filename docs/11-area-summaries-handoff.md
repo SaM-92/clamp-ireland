@@ -1,7 +1,9 @@
 # Area summaries: implementation and handoff
 
 Status: Steps 1 and 2 implemented. Generation is an explicit admin action,
-followed by a separate human approval. This task made **no live model requests
+followed by a separate human approval. **Update:** the shared Azure transport
+and synthetic live demonstration are documented in handoff 17. The original
+implementation described below made **no live model requests
 or paid calls**, deployed no migration and changed no credentials or dependencies.
 Migration `0004_reviewed_area_summaries.sql` depends on `0001` and `0002`, not the
 separately owned `0003` analytics migration. Parent owns final production build,
@@ -16,7 +18,9 @@ deployment. Shared administration navigation now includes Area summaries.
    reviewed forward migration rather than rerunning the non-idempotent file.
 2. Configure the existing central environment variables:
    `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`,
-   `SUPABASE_SERVICE_ROLE_KEY`, server-only `OPENAI_API_KEY`, and
+   `SUPABASE_SERVICE_ROLE_KEY`, a server-only AI provider (Azure GPT-5 mini
+   with Entra or explicit API-key authentication, or the original OpenAI
+   provider), and
    `ENABLE_AREA_SUMMARIES=true`. Never put either privileged key in a
    `NEXT_PUBLIC_*` variable, URL, browser storage or client request.
 3. Sign in with an existing administrator account (`profiles.is_admin`).
@@ -147,8 +151,9 @@ not enter that input. Prompt injection in notes is never authority. OpenAI
 structured output constrains object shape; local Zod validation must also run.
 Provider refusals/partial responses must be errors, not publishable placeholders.
 
-`server/provider.ts` sends one server-only POST to
-`https://api.openai.com/v1/responses`, with fixed `model: "gpt-5-mini"`,
+`server/provider.ts` uses the shared `ai/server/client.ts` for one server-only
+POST to the configured Azure resource's `/openai/v1/responses` endpoint, or
+`https://api.openai.com/v1/responses` in explicit OpenAI mode, using GPT-5 mini,
 `instructions`, JSON notes as `input`, `text.format` strict JSON schema,
 `max_output_tokens: 1024`, `store: false` and `stream: false`. It uses no tools,
 images, conversation state or provider response cache. The model gets note

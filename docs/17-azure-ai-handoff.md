@@ -52,6 +52,52 @@ configuration rejection, strict output parsing, timeouts, request bounds,
 existing summary caching and public/admin isolation. These tests forbid live
 network calls and do not establish production inference access.
 
-The owner approved at most ten short synthetic local demonstration requests.
-The demonstration and its live result are being integrated separately; no live
-inference success or production deployment is claimed by this handoff yet.
+## Local demonstration
+
+With the ignored `.env.local` configured for Azure, set
+`ENABLE_LOCAL_AI_DEMO=true` and run:
+
+```powershell
+npm run dev -- --hostname 127.0.0.1 --port 3001
+```
+
+Open `http://localhost:3001/dev/ai-demo`, or use the map's local-preview link.
+The page offers fixed synthetic samples: a one-sentence summary, allowed
+factual criticism, abusive report text and an abusive username. It labels
+actual Azure output, deterministic local-rule rejection and cached output
+separately. No accounts, private reports or image uploads are involved.
+
+The API is development-only, explicitly enabled, same-origin and loopback
+restricted. It accepts only a fixed example identifier, never arbitrary text
+or model settings. Production returns 404 even if the flag is accidentally
+enabled. Bind the development server to loopback; do not publish it.
+The admin remains locked without its two approved real identities.
+
+`.local/ai-demo-budget.json` tracks a hard ten-attempt limit across process
+restarts. A file lock prevents concurrent workers exceeding the limit.
+Authentication failures/timeouts consume an attempt too. Corrupt state,
+an inaccessible directory or an orphan lock blocks further calls. Do not
+reset the counter or remove a lock while an attempt is running; new spending
+requires owner approval. Successful samples are cached in process memory,
+not in the community database. Restarting loses that cache, not the counter.
+
+The owner approved at most ten short synthetic local requests. Initial live
+verification used **three model calls**: the summary returned one valid
+sentence, factual criticism was allowed, and personal abuse was blocked.
+The unsafe username was rejected by a deterministic rule without a model call.
+This proves local inference through the signed-in Azure CLI identity, not
+production managed-identity permissions or classifier completeness.
+
+Example real summary from the synthetic notes:
+
+> Reports mention a person was clamped after parking in a visitor space without
+> a visible permit and that visitor permit instructions were hard to read from
+> the entrance while a permit sign was later found beside the spaces.
+
+Map-local notes use deterministic checks only and remain entirely in the
+browser. They never silently send private preview text to Azure. Their human
+approval is simulated, not a real moderation decision. The synthetic demo
+does not exercise live PostGIS selection within 500 metres.
+
+No production deployment, model deployment, live migration or Azure role
+change was performed.

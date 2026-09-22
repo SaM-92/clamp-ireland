@@ -3,6 +3,7 @@ import { getTransparencyStats } from "@/modules/dashboard/server/stats";
 import { isSupabaseConfigured } from "@/lib/env";
 import { seoPolicy } from "@/modules/seo/config";
 import { publicPageMetadata, websiteStructuredData } from "@/modules/seo/policy";
+import { localAiDemoEnabled } from "@/modules/ai-demo/server/guard";
 
 export const metadata = publicPageMetadata(
   seoPolicy,
@@ -27,7 +28,7 @@ export default async function Home() {
           dangerouslySetInnerHTML={{ __html: JSON.stringify(website).replace(/</g, "\\u003c") }}
         />
       )}
-      <HomeClient initialStats={stats} preview={process.env.NODE_ENV === "development" && !isSupabaseConfigured} />
+      <HomeClient initialStats={stats} preview={process.env.NODE_ENV === "development" && !isSupabaseConfigured} aiDemo={localAiDemoEnabled()} />
     </>
   );
 }

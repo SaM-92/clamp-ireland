@@ -15,8 +15,9 @@ import type { TransparencyStats } from "@/modules/dashboard/types";
 import { PlaceSearch } from "@/modules/map/components/PlaceSearch";
 import { LocationNotes } from "@/modules/reports/components/LocationNotes";
 import { clearPreviewVotes } from "@/modules/votes/preview";
+import { validateContent } from "@/modules/content-policy/policy";
 
-export function HomeClient({ initialStats, preview }: { initialStats: TransparencyStats; preview: boolean }) {
+export function HomeClient({ initialStats, preview, aiDemo = false }: { initialStats: TransparencyStats; preview: boolean; aiDemo?: boolean }) {
   const mapPanelRef = useRef<HTMLDivElement>(null);
   const [locations, setLocations] = useState<LocationSummary[]>([]);
   const [stats, setStats] = useState(initialStats);
@@ -95,10 +96,11 @@ export function HomeClient({ initialStats, preview }: { initialStats: Transparen
     if (!pendingPin) throw new Error("Choose a location on the map first.");
     if (preview) {
       if (!loaded || loadError) throw new Error("Reset preview before adding reports; saved data could not be loaded.");
+      const description = validateContent("report_note", values.description);
       const report: PreviewReport = {
         id: crypto.randomUUID(), ...pendingPin, reporterType: values.reporterType,
         hasImage: Boolean(values.image), createdAt: new Date().toISOString(),
-        description: values.description.trim(), incidentDate: values.incidentDate || null,
+        description, incidentDate: values.incidentDate || null,
       };
       const next = [...previewReports, report];
       savePreviewReports(next);
@@ -141,6 +143,7 @@ export function HomeClient({ initialStats, preview }: { initialStats: Transparen
       {preview && (
         <div className="preview-banner">
           <span><strong>Local preview</strong> No sign-in needed. Test reports stay in this browser, not on the public map.</span>
+          {aiDemo && <a className="text-button" href="/dev/ai-demo">Try the AI demo</a>}
           <button className="text-button" onClick={resetPreview}>Reset preview</button>
         </div>
       )}
