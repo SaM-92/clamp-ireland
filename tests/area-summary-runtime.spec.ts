@@ -189,7 +189,7 @@ test("HTTP/429/network/oversized JSON errors never retry, echo provider bodies o
 test("provider timeout aborts its single request with a charge-aware error", async () => {
   const rt = runtime({}, {
     setTimeout: (callback: () => void, delay: number) => {
-      expect(delay).toBe(30_000); queueMicrotask(callback); return 1;
+      expect(delay).toBe(30_000); return setTimeout(callback, 0);
     },
     clearTimeout: () => {},
   });
@@ -203,6 +203,77 @@ test("provider timeout aborts its single request with a charge-aware error", asy
   });
   await expect(Promise.resolve(promise)).rejects.toMatchObject({ code: "provider_timeout", status: 504 });
   expect(calls).toBe(1);
+});
+
+test("Azure summaries use the existing deployment, v1 endpoint and server-only Azure credential", async () => {
+  const rt = runtime({
+    "@/lib/env": { isSupabaseConfigured: true, env: {
+      ENABLE_AREA_SUMMARIES: true, SUPABASE_SERVICE_ROLE_KEY: "mock",
+      AI_PROVIDER: "azure", AZURE_OPENAI_ENDPOINT: "https://fixture.openai.azure.com/",
+      AZURE_OPENAI_DEPLOYMENT: "gpt-5-mini", AZURE_OPENAI_AUTH_MODE: "api-key",
+      AZURE_OPENAI_API_KEY: "synthetic-fixture-key",
+    } },
+  });
+  const provider = rt.load<typeof import("../src/modules/area-summaries/server/provider")>(providerPath);
+  let calls = 0;
+  expect(await provider.generateAreaSummaryOutput(snapshot(), async (url, init) => {
+    calls++;
+    expect(url).toBe("https://fixture.openai.azure.com/openai/v1/responses");
+    expect(new Headers(init?.headers).get("api-key")).toBe("synthetic-fixture-key");
+    expect(new Headers(init?.headers).has("Authorization")).toBe(false);
+    expect(init?.redirect).toBe("error");
+    const body = JSON.parse(String(init?.body));
+    expect(body).toMatchObject({ model: "gpt-5-mini", store: false, stream: false });
+    expect(body).not.toHaveProperty("tools");
+    return Response.json(completed());
+  })).toEqual({ sentence });
+  expect(calls).toBe(1);
+});
+
+test("Azure rejects non-resource endpoints and unknown authentication without sending notes", async () => {
+  for (const endpoint of [
+    "http://fixture.openai.azure.com/", "https://localhost/", "https://other.example/",
+    "https://fixture.openai.azure.com.evil.example/", "https://fixture.openai.azure.com/?key=x",
+    "https://fixture.openai.azure.com/openai/v1/", "https://user:pass@fixture.openai.azure.com/",
+  ]) {
+    const provider = runtime({
+      "@/lib/env": { isSupabaseConfigured: true, env: {
+        ENABLE_AREA_SUMMARIES: true, SUPABASE_SERVICE_ROLE_KEY: "mock",
+        AI_PROVIDER: "azure", AZURE_OPENAI_ENDPOINT: endpoint,
+        AZURE_OPENAI_DEPLOYMENT: "gpt-5-mini", AZURE_OPENAI_AUTH_MODE: "api-key", AZURE_OPENAI_API_KEY: "mock",
+      } },
+    }).load<typeof import("../src/modules/area-summaries/server/provider")>(providerPath);
+    await expect(Promise.resolve(provider.generateAreaSummaryOutput(snapshot()))).rejects.toMatchObject({ code: "unconfigured" });
+  }
+});
+
+test("Entra uses managed identity in production and never falls back to a provider key", async () => {
+  let credentials = 0;
+  const provider = runtime({
+    "@/lib/env": { isSupabaseConfigured: true, env: {
+      ENABLE_AREA_SUMMARIES: true, SUPABASE_SERVICE_ROLE_KEY: "mock",
+      AI_PROVIDER: "azure", AZURE_OPENAI_ENDPOINT: "https://fixture.openai.azure.com",
+      AZURE_OPENAI_DEPLOYMENT: "gpt-5-mini", AZURE_OPENAI_AUTH_MODE: "entra", NODE_ENV: "production",
+    } },
+    "@azure/identity": {
+      AzureCliCredential: class { constructor() { throw new Error("CLI must not be used in production"); } },
+      ManagedIdentityCredential: class {
+        constructor() { credentials++; }
+        async getToken(scope: string) {
+          expect(scope).toBe("https://ai.azure.com/.default");
+          return { token: "synthetic-token" };
+        }
+      },
+    },
+  }).load<typeof import("../src/modules/area-summaries/server/provider")>(providerPath);
+  const fetcher: typeof fetch = async (_url, init) => {
+    expect(new Headers(init?.headers).get("Authorization")).toBe("Bearer synthetic-token");
+    expect(new Headers(init?.headers).has("api-key")).toBe(false);
+    return Response.json(completed());
+  };
+  await provider.generateAreaSummaryOutput(snapshot(), fetcher);
+  await provider.generateAreaSummaryOutput(snapshot(), fetcher);
+  expect(credentials).toBe(1);
 });
 
 test("admin routes use the real auth gate; disabled/no-key/invalid/unchecked requests cannot generate or approve", async () => {
