@@ -1,12 +1,13 @@
 import { expect, test } from "@playwright/test";
 import { policyRuntime } from "./helpers/content-policy-runtime";
+import { POLICY_TEXT } from "../src/modules/content-policy/policy";
 
 const userId = "20000000-0000-4000-8000-000000000001";
 const locationId = "30000000-0000-4000-8000-000000000001";
 
 function fixture() {
   const state = {
-    aiCalls: 0, uploads: 0, decisions: { allowed: true, code: "allowed" } as unknown,
+    aiCalls: 0, uploads: 0, decisions: { decision: "approve", code: "allowed" } as unknown,
     offline: false, rateError: false, capacity: true, banned: false, onboarding: false,
     writes: [] as Record<string, unknown>[], rpc: [] as { name: string; args: Record<string, unknown> }[],
     usernameWrites: [] as string[], profileFailure: false,
@@ -102,16 +103,23 @@ test("rejection and AI failure return safe distinct errors before upload or repo
   const f = fixture();
   const cheap = await f.reports.POST(reportRequest("fuck"));
   expect(cheap.status).toBe(422);
-  expect(await cheap.json()).toMatchObject({ code: "content_policy_rejected", error: expect.stringContaining("Factual") });
+  expect(await cheap.json()).toEqual({
+    code: "content_policy_rejected", error: POLICY_TEXT.profanity,
+    classification: { decision: "blocked", text: POLICY_TEXT.profanity },
+  });
   expect(f.state.aiCalls).toBe(0);
   expect(f.state.rpc).toEqual([]);
-  f.state.decisions = { allowed: false, code: "abuse" };
-  expect((await f.reports.POST(reportRequest("The attendant is a worthless person."))).status).toBe(422);
+  f.state.decisions = { decision: "blocked", code: "abuse" };
+  const blocked = await f.reports.POST(reportRequest("The attendant is a worthless person."));
+  expect(blocked.status).toBe(422);
+  expect(await blocked.json()).toMatchObject({ classification: { decision: "blocked", text: POLICY_TEXT.abuse } });
   f.state.offline = true;
   const failed = await f.reports.POST(reportRequest());
   expect(failed.status).toBe(503);
   expect(failed.headers.get("cache-control")).toBe("private, no-store");
-  expect(await failed.json()).toMatchObject({ code: "content_policy_unavailable", error: expect.stringContaining("try again") });
+  const unavailable = await failed.json();
+  expect(unavailable).toMatchObject({ code: "content_policy_unavailable", error: expect.stringContaining("try again") });
+  expect(unavailable).not.toHaveProperty("classification");
   expect(f.state.uploads).toBe(0);
   expect(f.state.writes).toEqual([]);
   expect(f.logs).toEqual([]);
@@ -173,9 +181,11 @@ test("legacy anonymous identities require real onboarding and never expose auth 
 test("username abuse, provider malformation and banned accounts never write names", async () => {
   const f = fixture();
   expect((await f.usernames.PUT(usernameRequest({ username: "admin" }))).status).toBe(422);
-  f.state.decisions = { allowed: false, code: "unsafe_username" };
-  expect((await f.usernames.PUT(usernameRequest({ username: "john_smith" }))).status).toBe(422);
-  f.state.decisions = { allowed: true, code: "allowed", injected: true };
+  f.state.decisions = { decision: "blocked", code: "unsafe_username" };
+  const rejected = await f.usernames.PUT(usernameRequest({ username: "john_smith" }));
+  expect(rejected.status).toBe(422);
+  expect(await rejected.json()).toMatchObject({ classification: { decision: "blocked", text: POLICY_TEXT.unsafe_username } });
+  f.state.decisions = { decision: "approve", code: "allowed", injected: true };
   expect((await f.usernames.PUT(usernameRequest())).status).toBe(503);
   const calls = f.state.aiCalls;
   f.state.banned = true;

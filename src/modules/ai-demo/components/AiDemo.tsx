@@ -3,19 +3,12 @@
 import { useState } from "react";
 import { z } from "zod";
 import Link from "next/link";
-import { DEMO_CASES, DEMO_NOTES, type DemoCase } from "../samples";
+import { DEMO_CASES, DEMO_NOTES, demoResultSchema, type DemoCase, type DemoResult } from "../samples";
 import styles from "./AiDemo.module.css";
-
-const resultSchema = z.strictObject({
-  source: z.enum(["azure", "local-rule"]), kind: z.enum(["summary", "policy"]),
-  message: z.string().min(1).max(500), allowed: z.boolean().optional(),
-  durationMs: z.number().nonnegative(), remaining: z.number().int().min(0).max(10), cached: z.boolean(),
-});
-type Result = z.infer<typeof resultSchema>;
 
 export function AiDemo({ ready, setupMessage, remaining }: { ready: boolean; setupMessage: string; remaining: number }) {
   const [pending, setPending] = useState<DemoCase | null>(null);
-  const [results, setResults] = useState<Partial<Record<DemoCase, Result>>>({});
+  const [results, setResults] = useState<Partial<Record<DemoCase, DemoResult>>>({});
   const [errors, setErrors] = useState<Partial<Record<DemoCase, string>>>({});
   const [budget, setBudget] = useState(remaining);
 
@@ -35,7 +28,10 @@ export function AiDemo({ ready, setupMessage, remaining }: { ready: boolean; set
         if (error.success && error.data.remaining !== undefined) setBudget(error.data.remaining);
         throw new Error(error.success ? error.data.error : "AI demo unavailable. No result was accepted.");
       }
-      const result = resultSchema.parse(value);
+      const parsed = demoResultSchema.safeParse(value);
+      if (!parsed.success) throw new Error("The demo returned an invalid result. Nothing was accepted.");
+      const result = parsed.data;
+      if ((id === "summary") !== (result.kind === "summary")) throw new Error("The demo returned the wrong result type.");
       setResults((previous) => ({ ...previous, [id]: result }));
       setBudget(result.remaining);
     } catch (error) {
@@ -54,6 +50,7 @@ export function AiDemo({ ready, setupMessage, remaining }: { ready: boolean; set
       <p className="eyebrow">Development only / synthetic examples</p>
       <h1>See the AI work.</h1>
       <p>Real Azure GPT-5 mini calls, not prewritten AI answers. Nothing here creates a report, unlocks administration or publishes a summary.</p>
+      <p>Content checks return approve or blocked with a fixed explanation, not AI-written feedback. Only the short summary is generated text.</p>
       <p className={styles.budget}>{budget} of 10 model requests remaining. Repeated successful examples use a local cache.</p>
       {!ready && <p className="form-error" role="alert">{setupMessage}</p>}
     </header>
@@ -72,8 +69,8 @@ export function AiDemo({ ready, setupMessage, remaining }: { ready: boolean; set
           {errors[id] && <p className="form-error" role="alert">{errors[id]}</p>}
           {result && !errors[id] && <div className={styles.result} role="status">
             <p className="eyebrow">{result.source === "azure" ? "Real Azure response" : "Local policy rule / no model call"}</p>
-            {result.kind === "policy" && <strong>{result.allowed ? "Allowed" : "Blocked by content policy"}</strong>}
-            <p>{result.message}</p>
+            {result.kind === "policy" && <strong>{result.decision === "approve" ? "Approve" : "Blocked"}</strong>}
+            <p>{result.kind === "summary" ? result.message : result.text}</p>
             <small>{(result.durationMs / 1000).toFixed(1)} s{result.cached ? " / cached result" : ""}{result.kind === "summary" ? " / draft, not human-approved" : ""}</small>
           </div>}
         </section>;

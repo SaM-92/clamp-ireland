@@ -1,8 +1,23 @@
 export type ContentKind = "report_note" | "username";
 
 export const CONTENT_LIMITS = { report_note: 2000, username: 24 } as const;
-export const POLICY_REJECTION_MESSAGE =
-  "Please remove profanity, abuse, threats or impersonation before continuing. Factual, non-abusive criticism is welcome.";
+export const POLICY_TEXT = {
+  allowed: "Passed content checks. Reports still need human review before publication.",
+  profanity: "Blocked because it contains profanity. Please remove it; factual criticism is welcome.",
+  abuse: "Blocked because it contains personal abuse, hate, harassment or threats. Describe what happened without attacking anyone.",
+  unsafe_username: "Blocked because this username appears to impersonate someone or reveal personal details. Choose a neutral pseudonym.",
+  prompt_injection: "Blocked because it asks the content checker to ignore or change its rules. Submit only your report or username.",
+} as const;
+export type PolicyCode = keyof typeof POLICY_TEXT;
+export interface PolicyClassification {
+  decision: "approve" | "blocked";
+  text: (typeof POLICY_TEXT)[PolicyCode];
+}
+
+export function policyClassification(code: PolicyCode): PolicyClassification {
+  return { decision: code === "allowed" ? "approve" : "blocked", text: POLICY_TEXT[code] };
+}
+
 export const POLICY_UNAVAILABLE_MESSAGE =
   "Content checks are temporarily unavailable. Nothing was submitted. Please try again shortly.";
 
@@ -11,10 +26,16 @@ export class ContentPolicyError extends Error {
     public readonly code: "content_policy_rejected" | "content_policy_unavailable" | "invalid_content" | "content_policy_rate_limited",
     public readonly status: 400 | 422 | 429 | 503,
     message: string,
+    public readonly classification?: PolicyClassification,
   ) {
     super(message);
     this.name = "ContentPolicyError";
   }
+}
+
+export function rejectContent(code: Exclude<PolicyCode, "allowed">): ContentPolicyError {
+  const classification = policyClassification(code);
+  return new ContentPolicyError("content_policy_rejected", 422, classification.text, classification);
 }
 
 export function normalizeContent(text: string): string {
@@ -52,12 +73,15 @@ export function validateContent(kind: ContentKind, input: unknown): string {
   }
   const folded = text.toLowerCase().normalize("NFKD").replace(/\p{M}/gu, "")
     .replace(/[аеіорсухѕһ013457@$!]/gu, (character) => confusables[character] ?? character);
-  if (profanityPatterns.some((pattern) => pattern.test(folded))
-    || (kind === "username" && /^(admin|administrator|moderator|official|support|clamp_?ireland)(?:_.*|\d*)$/.test(text))
-    || /\bignore\b.{0,40}\b(previous|above|system|instructions)\b/i.test(text)
+  if (profanityPatterns.some((pattern) => pattern.test(folded))) throw rejectContent("profanity");
+  if (kind === "username" && /^(admin|administrator|moderator|official|support|clamp_?ireland)(?:_.*|\d*)$/.test(text)) {
+    throw rejectContent("unsafe_username");
+  }
+  if (/\bignore\b.{0,40}\b(previous|above|system|instructions)\b/i.test(text)
     || /\b(system|developer)\s+prompt\b/i.test(text)
-    || /["']?allowed["']?\s*[:=]\s*true/i.test(text)) {
-    throw new ContentPolicyError("content_policy_rejected", 422, POLICY_REJECTION_MESSAGE);
+    || /["']?allowed["']?\s*[:=]\s*true/i.test(text)
+    || /["']?decision["']?\s*[:=]\s*["']?approve\b/i.test(text)) {
+    throw rejectContent("prompt_injection");
   }
   return text;
 }

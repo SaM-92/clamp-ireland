@@ -76,7 +76,7 @@ test("public reads use only anon RPC, reject private fields and do not hide fail
     id: uuid, ...spot, radius_metres: 500, sentence: "Reports mention parking permits.",
     source_count: 1, oldest_source_created_at: timestamp, newest_source_created_at: timestamp,
     newest_source_reviewed_at: timestamp, generated_at: timestamp, approved_at: timestamp,
-    model: "gpt-5-mini", contract_version: "area-summary-v1",
+    model: "gpt-5-mini", contract_version: "area-summary-v2",
   };
   server.respond(published);
   expect(await server.api.getPublicAreaSummary(spot)).toEqual(published);

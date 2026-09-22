@@ -6,16 +6,16 @@ import { AiProviderError } from "@/modules/ai/server/errors";
 import { getAiConfiguration } from "@/modules/ai/server/config";
 import { allowLocalDemoRequest, localAiDemoEnabled } from "@/modules/ai-demo/server/guard";
 import { remainingDemoRequests, reserveDemoRequest } from "@/modules/ai-demo/server/budget";
-import { DEMO_CASES, DEMO_NOTES, type DemoCase, type DemoResult } from "@/modules/ai-demo/samples";
+import { DEMO_CASES, DEMO_NOTES, type DemoCase, type DemoOutput } from "@/modules/ai-demo/samples";
 import { generateSummaryFromSnapshot } from "@/modules/area-summaries/server/provider";
 import { AreaSummaryError } from "@/modules/area-summaries/server/errors";
-import { ContentPolicyError, validateContent } from "@/modules/content-policy/policy";
+import { ContentPolicyError, policyClassification, validateContent } from "@/modules/content-policy/policy";
 import { checkContentPolicy } from "@/modules/content-policy/server/check";
 
 export const dynamic = "force-dynamic";
 const inputSchema = z.strictObject({ example: z.enum(["summary", "allowed-note", "abusive-note", "unsafe-username"]) });
 const headers = { "Cache-Control": "no-store", "X-Robots-Tag": "noindex, nofollow" };
-const cache = new Map<DemoCase, Omit<DemoResult, "remaining" | "cached">>();
+const cache = new Map<DemoCase, DemoOutput>();
 let busy = false;
 
 export function GET() {
@@ -58,7 +58,7 @@ export async function POST(request: Request) {
     const cached = cache.get(id);
     if (cached) return NextResponse.json({ ...cached, remaining, cached: true }, { headers });
     const example = DEMO_CASES[id];
-    let result: Omit<DemoResult, "remaining" | "cached">;
+    let result: DemoOutput;
     if (example.kind === "summary") {
       remaining = await reserveDemoRequest();
       const output = await generateSummaryFromSnapshot(snapshot());
@@ -71,12 +71,11 @@ export async function POST(request: Request) {
         remaining = await reserveDemoRequest();
         usedAi = true;
         await checkContentPolicy({ kind, text: example.text });
-        result = { source: "azure", kind: "policy", allowed: true,
-          message: "Passed automated content checks. This does not approve a report for publication.", durationMs: performance.now() - start };
+        result = { source: "azure", kind: "policy", ...policyClassification("allowed"), durationMs: performance.now() - start };
       } catch (error) {
-        if (!(error instanceof ContentPolicyError) || error.code !== "content_policy_rejected") throw error;
-        result = { source: usedAi ? "azure" : "local-rule", kind: "policy", allowed: false,
-          message: error.message, durationMs: performance.now() - start };
+        if (!(error instanceof ContentPolicyError) || error.code !== "content_policy_rejected" || !error.classification) throw error;
+        result = { source: usedAi ? "azure" : "local-rule", kind: "policy", ...error.classification,
+          durationMs: performance.now() - start };
       }
     }
     cache.set(id, result);

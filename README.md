@@ -165,8 +165,12 @@ npm install
    for public feedback counts and private confirmed-account voting.
    Then [`0006_content_policy.sql`](supabase/migrations/0006_content_policy.sql)
    adds username moderation, submission rate admission and direct-write
-   restrictions. Apply each migration once. Migration 0006 and a configured
-   AI provider are required before deploying this version against a backend.
+   restrictions. Then
+   [`0007_concise_area_summaries.sql`](supabase/migrations/0007_concise_area_summaries.sql)
+   enforces 20-word/160-character v2 summaries and retires cached v1 drafts
+   and approvals without rewriting historical text. Apply each migration once.
+   Migrations 0006/0007 and a configured AI provider are required before
+   deploying this version against a backend.
    The second migration restricts public reads to reviewed notes, prevents
    self-assigned admin roles, and restricts location creation to the server.
    It intentionally requeues legacy published reports without review stamps

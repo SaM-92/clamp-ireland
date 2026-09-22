@@ -30,7 +30,8 @@ export async function generateSummaryFromSnapshot(snapshot: unknown, fetcher: ty
       maxOutputTokens: AREA_SUMMARY_MAX_OUTPUT_TOKENS, timeoutMs: AREA_SUMMARY_TIMEOUT_MS,
     }, fetcher);
     const parsed = summaryOutputSchema.safeParse(output);
-    if (!parsed.success) throw new AreaSummaryError("provider_malformed", "The provider returned malformed summary output. No draft was saved.", 502);
+    if (!parsed.success) throw new AreaSummaryError("provider_malformed",
+      "The generated summary did not meet the one-sentence, 20-word and 160-character rules. No draft was saved.", 502);
     return parsed.data;
   } catch (error) {
     if (error instanceof AiProviderError) throw new AreaSummaryError(error.code, error.message, error.status);

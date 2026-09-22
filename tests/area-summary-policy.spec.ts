@@ -9,7 +9,7 @@ const author = "00000000-0000-4000-8000-000000000002";
 const sentence = "Reports mention visitor parking permits.";
 const id = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, "0")}`;
 
-async function fixture() {
+async function fixture(concise = true) {
   const db = new PGlite();
   try {
     // POLICY FIXTURE ONLY: PGlite has no PostGIS. Geometry is an array and
@@ -48,6 +48,7 @@ async function fixture() {
     `);
     await db.exec(await readFile(path.resolve("supabase", "migrations", "0002_reviewed_public_notes.sql"), "utf8"));
     await db.exec(await readFile(path.resolve("supabase", "migrations", "0004_reviewed_area_summaries.sql"), "utf8"));
+    if (concise) await db.exec(await readFile(path.resolve("supabase", "migrations", "0007_concise_area_summaries.sql"), "utf8"));
     await db.exec(`
       insert into locations(id,geom) values
         ('${id(10)}',array[0,0]), ('${id(11)}',array[0.0499,0]),
@@ -107,6 +108,46 @@ test("production source predicate uses inclusive fixed 500m spheroidal geography
   expect(selection).toContain("r.moderation_status = 'published' and r.reviewed_at is not null and not r.is_removed");
   expect(selection).toContain("order by r.id");
   expect(selection).not.toMatch(/\blimit\b|\brecursive\b/i);
+});
+
+test("concise contract preserves old wording but invalidates its cache and enforces both limits in SQL", async () => {
+  const db = await fixture(false);
+  try {
+    const old = await draft(db);
+    await approve(db, old);
+    const oldDraft = (await db.query<{ id: string }>(
+      "select create_area_summary_draft(0,0,$1,$2,true) as id", [(await sources(db)).source_fingerprint, sentence],
+    )).rows[0].id;
+    await db.exec(await readFile(path.resolve("supabase", "migrations", "0007_concise_area_summaries.sql"), "utf8"));
+    expect(await publicSummary(db)).toBeNull();
+    for (const legacy of [old, oldDraft]) {
+      expect((await db.query("select sentence,status,contract_version from area_summaries where id=$1", [legacy])).rows[0])
+        .toEqual({ sentence, status: "stale", contract_version: "area-summary-v1" });
+      await expect(approve(db, legacy)).rejects.toThrow("Only an existing draft");
+    }
+    const current = await draft(db);
+    expect(current).not.toBe(old);
+    expect(current).not.toBe(oldDraft);
+    await approve(db, current);
+    expect((await publicSummary(db))?.contract_version).toBe("area-summary-v2");
+    const fingerprint = (await sources(db)).source_fingerprint;
+    const atCharacterLimit = `Reports mention ${"x".repeat(143)}.`;
+    const atWordLimit = `Reports mention ${Array(18).fill("signs").join(" ")}.`;
+    for (const value of [atCharacterLimit, atWordLimit]) {
+      await db.query("select create_area_summary_draft(0,0,$1,$2,true)", [fingerprint, value]);
+    }
+    for (const value of [atCharacterLimit.replace(".", "x."), atWordLimit.replace(".", " signs.")]) {
+      await expect(db.query("select create_area_summary_draft(0,0,$1,$2,true)", [fingerprint, value]))
+        .rejects.toThrow("area_summaries_concise_sentence_check");
+      const fresh = (await db.query<{ id: string }>(
+        "select create_area_summary_draft(0,0,$1,$2,true) as id", [fingerprint, sentence],
+      )).rows[0].id;
+      await expect(db.query("select approve_area_summary_draft($1,$2,$3,$4)", [fresh, admin, value, fingerprint]))
+        .rejects.toThrow("area_summaries_concise_sentence_check");
+      expect((await db.query("select sentence,status from area_summaries where id=$1", [fresh])).rows[0])
+        .toEqual({ sentence, status: "draft" });
+    }
+  } finally { await db.close(); }
 });
 
 test("policy fixture includes boundary and every approved source, excludes chain-only/pending/removed sources", async () => {

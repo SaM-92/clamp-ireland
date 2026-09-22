@@ -138,6 +138,9 @@ only in chat history.
 - [x] Semantic source tags, digest-pinned promotion and per-attempt version records
 - [x] Production builds, isolated Linux containers and hosted GitHub CI verified;
       source baseline tagged `v0.1.0` (not a cloud deployment)
+- [x] Classifier decisions use `approve`/`blocked` and fixed explanations;
+      v2 summaries enforce 20 words/160 characters, with forward migration
+      `0007_concise_area_summaries.sql` prepared but not applied
 - [ ] Configure release/production environments, reviewer protection and Azure OIDC
 - [ ] Provision/approve hosting, backend identities, private storage and domains
 - [ ] Apply reviewed migrations after owner approval

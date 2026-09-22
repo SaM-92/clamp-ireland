@@ -11,11 +11,16 @@ deployment. Shared administration navigation now includes Area summaries.
 
 ## Setup and manual workflow
 
-1. Deploy the complete `0004_reviewed_area_summaries.sql` through the normal
+1. Apply `0004_reviewed_area_summaries.sql`, then the forward migration
+   `0007_concise_area_summaries.sql`, through the approved
    Supabase migration process. It includes the Step 2 edited-approval RPC and
    generation admission table/functions. This work did not apply Step 1 SQL
    to a live database. If it was independently applied elsewhere, prepare a
    reviewed forward migration rather than rerunning the non-idempotent file.
+   Migration 0007 switches generation/cache/public reads to `area-summary-v2`.
+   Existing v1 drafts/approvals become stale without rewriting or deleting
+   historical text; generating and separately reviewing a v2 draft is required.
+   Neither migration has been applied to a live database in this session.
 2. Configure the existing central environment variables:
    `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`,
    `SUPABASE_SERVICE_ROLE_KEY`, a server-only AI provider (Azure GPT-5 mini
@@ -109,12 +114,12 @@ Future note-edit flows must preserve the existing human-review publication polic
 | Item | Limit / behavior |
 | --- | --- |
 | Model | `gpt-5-mini` only |
-| Contract/cache version | `area-summary-v1` |
+| Contract/cache version | `area-summary-v2` |
 | Radius | Exactly 500m, not caller-configurable |
 | Approved sources | At most 200; 201 refuses the entire set |
 | Approved description bytes | At most 48,000 UTF-8 bytes total; no per-note truncation |
 | Instructions + serialized input | At most 96,000 UTF-8 bytes, including JSON escaping |
-| Output | Strict object with only `sentence`, starting `Reports mention `, one sentence, at most 240 characters |
+| Output | Strict object with only `sentence`, starting `Reports mention `, one sentence, at most 20 words AND 160 characters; prompt targets 8-12 words |
 | Provider output budget | 1,024 tokens, including reasoning; `reasoning.effort="minimal"` |
 | Provider deadline | 30 seconds; abort on timeout; no automatic retries or redirects |
 | Provider JSON response | At most 65,536 bytes; malformed/oversized JSON is an error |
@@ -132,9 +137,13 @@ the enclosing HTTP JSON envelope; bytes are not a token estimate.
 Zod and the SQL sentence constraint reject extra output fields, multiple
 sentences, line breaks, markup and obvious contact links. The sentence rule is
 deliberately restrictive (no internal `.`, `!`, `?`, including abbreviations or
-decimal points). The TypeScript 240-character limit counts UTF-16 code units;
+decimal points). The TypeScript 160-character limit counts UTF-16 code units;
 the SQL limit counts PostgreSQL characters, so application validation can be
-stricter for non-BMP text, never looser.
+stricter for non-BMP text, never looser. Word counts use whitespace-delimited
+words, including the `Reports mention` prefix. Generation, admin editing,
+approval, demo display and public parsing enforce the limits; SQL migration
+0007 also checks new v2 writes and edited approvals. Oversized output fails
+explicitly: it is not truncated, silently replaced or automatically retried.
 
 These checks **do not prove grounding or anonymity**. The instructions require
 cautious attribution, no allegations converted to facts, no inferred

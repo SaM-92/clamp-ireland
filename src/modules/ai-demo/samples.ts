@@ -1,3 +1,7 @@
+import { z } from "zod";
+import { summarySentenceSchema } from "@/modules/area-summaries/types";
+import { POLICY_TEXT } from "@/modules/content-policy/policy";
+
 export const DEMO_NOTES = [
   "I was clamped after parking in a visitor space without displaying a permit.",
   "The visitor permit instructions were hard to read from the entrance.",
@@ -14,12 +18,21 @@ export const DEMO_CASES = {
 export type DemoCase = keyof typeof DEMO_CASES;
 export const DEMO_REQUEST_LIMIT = 10;
 
-export interface DemoResult {
-  source: "azure" | "local-rule";
-  kind: "summary" | "policy";
-  message: string;
-  allowed?: boolean;
-  durationMs: number;
-  remaining: number;
-  cached: boolean;
-}
+const metadata = {
+  durationMs: z.number().nonnegative(),
+  remaining: z.number().int().min(0).max(DEMO_REQUEST_LIMIT),
+  cached: z.boolean(),
+};
+export const demoResultSchema = z.discriminatedUnion("kind", [
+  z.strictObject({
+    ...metadata, source: z.literal("azure"), kind: z.literal("summary"), message: summarySentenceSchema,
+  }),
+  z.strictObject({
+    ...metadata, source: z.enum(["azure", "local-rule"]), kind: z.literal("policy"),
+    decision: z.enum(["approve", "blocked"]),
+    text: z.enum([POLICY_TEXT.allowed, POLICY_TEXT.profanity, POLICY_TEXT.abuse, POLICY_TEXT.unsafe_username, POLICY_TEXT.prompt_injection]),
+  }).refine((value) => (value.decision === "approve") === (value.text === POLICY_TEXT.allowed)),
+]);
+export type DemoResult = z.infer<typeof demoResultSchema>;
+export type DemoOutput = Omit<Extract<DemoResult, { kind: "summary" }>, "remaining" | "cached">
+  | Omit<Extract<DemoResult, { kind: "policy" }>, "remaining" | "cached">;

@@ -35,10 +35,16 @@ test("output is a strict, short, cautious one-sentence object; semantics still r
     { sentence: "Reports mention parking!\nRegister now." },
     { sentence: "Reports mention contact user@example.com." },
     { sentence: "Reports mention <script>parking</script>." },
-    { sentence: `Reports mention ${"x".repeat(224)}.` },
+    { sentence: `Reports mention ${"x".repeat(144)}.` },
     { sentence: "Reports mention parking.\n" },
   ]) expect(summaryOutputSchema.safeParse(invalid).success).toBe(false);
-  expect(summaryOutputSchema.safeParse({ sentence: `Reports mention ${"x".repeat(223)}.` }).success).toBe(true);
+  expect(summaryOutputSchema.safeParse({ sentence: `Reports mention ${"x".repeat(143)}.` }).success).toBe(true);
+  const twentyWords = `Reports mention ${Array(18).fill("signs").join(" ")}.`;
+  expect(twentyWords.split(" ")).toHaveLength(20);
+  expect(summaryOutputSchema.safeParse({ sentence: twentyWords }).success).toBe(true);
+  expect(summaryOutputSchema.safeParse({ sentence: twentyWords.replace(".", " signs.") }).success).toBe(false);
+  const oldLongSummary = "Reports mention clamping after parking in a visitor space without a displayed permit and difficulty seeing permit instructions from the entrance, with a permit sign reportedly located closer to the spaces.";
+  expect(summaryOutputSchema.safeParse({ sentence: oldLongSummary }).success).toBe(false);
 });
 
 test("all notes are stable-ordered untrusted data; identifiers and provenance never enter model input", () => {
@@ -47,7 +53,8 @@ test("all notes are stable-ordered untrusted data; identifiers and provenance ne
   source.sources.reverse();
   const input = buildAreaSummaryInput(source);
   expect(input.model).toBe("gpt-5-mini");
-  expect(input.contractVersion).toBe("area-summary-v1");
+  expect(input.contractVersion).toBe("area-summary-v2");
+  expect(input.instructions).toContain("20 words and 160 characters");
   expect(input.instructions).toContain("UNTRUSTED DATA");
   expect(input.instructions).toContain("Never turn allegations into proven facts");
   expect(input.instructions).toContain("infer\nparking requirements absent");
@@ -103,9 +110,10 @@ test("strict source/public schemas reject extra private fields and invalid coord
     sentence: "Reports mention visitor parking permits.",
     source_count: 2, oldest_source_created_at: timestamp, newest_source_created_at: timestamp,
     newest_source_reviewed_at: timestamp, generated_at: timestamp, approved_at: timestamp,
-    model: "gpt-5-mini", contract_version: "area-summary-v1",
+    model: "gpt-5-mini", contract_version: "area-summary-v2",
   };
   expect(publicAreaSummarySchema.parse(publicSummary)).toEqual(publicSummary);
+  expect(publicAreaSummarySchema.safeParse({ ...publicSummary, contract_version: "area-summary-v1" }).success).toBe(false);
   for (const key of ["sources", "description_raw", "user_id", "reviewed_by", "image_url", "source_fingerprint", "status"]) {
     expect(publicAreaSummarySchema.safeParse({ ...publicSummary, [key]: "private" }).success).toBe(false);
   }

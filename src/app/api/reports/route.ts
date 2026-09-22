@@ -57,7 +57,10 @@ export async function POST(request: Request) {
     return NextResponse.json(report, { headers });
   } catch (err) {
     if (err instanceof ContentPolicyError || err instanceof ProfileError) {
-      return NextResponse.json({ error: err.message, code: err.code }, { status: err.status, headers });
+      return NextResponse.json({
+        error: err.message, code: err.code,
+        ...(err instanceof ContentPolicyError && err.classification ? { classification: err.classification } : {}),
+      }, { status: err.status, headers });
     }
     console.error("[Reports] submission failed");
     return NextResponse.json(

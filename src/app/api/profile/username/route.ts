@@ -10,7 +10,10 @@ const headers = { "Cache-Control": "private, no-store", Vary: "Authorization" };
 
 function failure(error: unknown) {
   if (error instanceof ContentPolicyError || error instanceof ProfileError) {
-    return NextResponse.json({ error: error.message, code: error.code }, { status: error.status, headers });
+    return NextResponse.json({
+      error: error.message, code: error.code,
+      ...(error instanceof ContentPolicyError && error.classification ? { classification: error.classification } : {}),
+    }, { status: error.status, headers });
   }
   console.error("[Username] request failed");
   return NextResponse.json({ error: POLICY_UNAVAILABLE_MESSAGE, code: "content_policy_unavailable" }, { status: 503, headers });

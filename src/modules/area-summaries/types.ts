@@ -2,11 +2,16 @@ import { z } from "zod";
 
 export const AREA_SUMMARY_RADIUS_METRES = 500;
 export const AREA_SUMMARY_MODEL = "gpt-5-mini";
-export const AREA_SUMMARY_CONTRACT_VERSION = "area-summary-v1";
+export const AREA_SUMMARY_CONTRACT_VERSION = "area-summary-v2";
 export const AREA_SUMMARY_MAX_SOURCES = 200;
 export const AREA_SUMMARY_MAX_SOURCE_BYTES = 48_000;
 export const AREA_SUMMARY_MAX_INPUT_BYTES = 96_000;
-export const AREA_SUMMARY_MAX_SENTENCE_LENGTH = 240;
+export const AREA_SUMMARY_MAX_SENTENCE_LENGTH = 160;
+export const AREA_SUMMARY_MAX_WORDS = 20;
+
+export function summaryWordCount(value: string): number {
+  return value.trim() ? value.trim().split(/\s+/u).length : 0;
+}
 
 export const summarySpotSchema = z.strictObject({
   latitude: z.number().min(-90).max(90),
@@ -17,6 +22,7 @@ export const summarySpotSchema = z.strictObject({
 // This checks structure, not truthfulness or anonymity; human review is mandatory.
 export const summarySentenceSchema = z.string()
   .min(18).max(AREA_SUMMARY_MAX_SENTENCE_LENGTH)
+  .refine((value) => summaryWordCount(value) <= AREA_SUMMARY_MAX_WORDS, "Use at most 20 words.")
   .regex(/^Reports mention [^.!?\r\n]+\.$/, "Use one short sentence beginning 'Reports mention '.")
   .refine((value) => !/[\u0000-\u001f\u007f<>@]|https?:|www\./i.test(value),
     "Do not include control characters, markup or contact links.");

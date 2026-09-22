@@ -74,6 +74,13 @@ test("375px admin workspace selects real API locations, generates only on click,
   await page.getByRole("button", { name: "Generate draft (may incur cost)" }).click();
   const approval = page.getByRole("button", { name: "Approve & publish summary" });
   await expect(approval).toBeDisabled();
+  const editor = page.getByRole("textbox", { name: "One-sentence summary" });
+  await expect(editor).toHaveAttribute("maxlength", "160");
+  await editor.fill(`Reports mention ${Array(19).fill("signs").join(" ")}.`);
+  await page.getByRole("checkbox").check();
+  await expect(approval).toBeDisabled();
+  await expect(page.getByText(/21\/20 words/)).toBeVisible();
+  await editor.fill(sentence);
   await page.getByRole("checkbox").check();
   await page.getByRole("textbox", { name: "One-sentence summary" }).fill("Reports mention registration for visitor parking.");
   await expect(page.getByRole("checkbox")).not.toBeChecked();

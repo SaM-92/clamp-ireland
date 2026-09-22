@@ -3,6 +3,8 @@ import { mkdtemp, readFile, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { policyRuntime } from "./helpers/content-policy-runtime";
+import { demoResultSchema } from "../src/modules/ai-demo/samples";
+import { POLICY_TEXT } from "../src/modules/content-policy/policy";
 
 function fixture(mode = "development") {
   const environment = { NODE_ENV: mode, ENABLE_LOCAL_AI_DEMO: true, AI_PROVIDER: "azure" };
@@ -65,10 +67,26 @@ test("fixed summary examples use a labelled cache and local policy rejections co
   expect(await first.json()).toMatchObject({ source: "azure", kind: "summary", cached: false, remaining: 9 });
   expect(await (await f.route.POST(f.request())).json()).toMatchObject({ cached: true, remaining: 9 });
   expect(await (await f.route.POST(f.request("unsafe-username"))).json()).toMatchObject({
-    source: "local-rule", allowed: false, remaining: 9,
+    source: "local-rule", decision: "blocked", text: POLICY_TEXT.profanity, remaining: 9,
   });
   expect(f.calls()).toBe(1);
   expect(f.reservations()).toBe(1);
+});
+
+test("demo classification exposes only the decision and fixed text, separate from generated summary text", async () => {
+  const f = fixture();
+  const result = await (await f.route.POST(f.request("allowed-note"))).json();
+  expect(demoResultSchema.parse(result)).toMatchObject({
+    kind: "policy", source: "azure", decision: "approve", text: POLICY_TEXT.allowed,
+  });
+  expect(result).not.toHaveProperty("message");
+  expect(result).not.toHaveProperty("allowed");
+  for (const invalid of [
+    { ...result, text: "Invented feedback" },
+    { ...result, decision: "blocked" },
+    { ...result, ai_text: "Extra feedback" },
+    { ...result, kind: "summary" },
+  ]) expect(demoResultSchema.safeParse(invalid).success).toBe(false);
 });
 
 test("failed demo calls do not invent results or expose exception details", async () => {

@@ -4,7 +4,8 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { z } from "zod";
 import {
-  adminSummaryResponseSchema, summarySentenceSchema,
+  adminSummaryResponseSchema, summarySentenceSchema, summaryWordCount,
+  AREA_SUMMARY_MAX_SENTENCE_LENGTH, AREA_SUMMARY_MAX_WORDS,
   type SummarySetup, type SummaryWorkspace,
 } from "../types";
 import styles from "./AreaSummaries.module.css";
@@ -158,7 +159,7 @@ export function AdminSummaryWorkspace({ initialSetup }: { initialSetup: SummaryS
   return <div className={styles.workspace}>
     <section className={styles.card} aria-label="Summary setup">
       <p>{setup.message}</p>
-      <p className="field-hint">Setup: enable ENABLE_AREA_SUMMARIES, configure Supabase and server-only OPENAI_API_KEY, apply migration 0004, then sign in with an administrator account. There is no local-data or unauthenticated preview.</p>
+      <p className="field-hint">Setup: enable ENABLE_AREA_SUMMARIES, configure Supabase and the server-side AI provider, apply migrations 0004 and 0007, then sign in with an approved administrator account. There is no local-data or unauthenticated preview.</p>
       <p>Every call uses gpt-5-mini: at most 200 approved notes, 48,000 UTF-8 source bytes, 96,000 instruction/input bytes and 1,024 output tokens. One request, 30-second provider timeout, no automatic retries. Charges may apply even after timeout. Limits are not a fixed euro cost or an account-wide spending cap.</p>
       <button className="button button-surface" disabled={busy} onClick={() => setRevision((value) => value + 1)}>Reload workspace</button>
       <p className="field-hint">Reloading discards unsaved edits and checks current sources.</p>
@@ -203,11 +204,11 @@ export function AdminSummaryWorkspace({ initialSetup }: { initialSetup: SummaryS
       {workspace.draft && <section className={styles.card} aria-label="Draft review">
         <h2>Draft - not public</h2>
         <label className={styles.field}>One-sentence summary
-          <textarea rows={4} maxLength={240} disabled={busy} value={sentence} onChange={(event) => {
+          <textarea rows={3} maxLength={AREA_SUMMARY_MAX_SENTENCE_LENGTH} disabled={busy} value={sentence} onChange={(event) => {
             setSentence(event.target.value); setReviewed(false);
           }} />
         </label>
-        <p className="field-hint">{sentence.length}/240 characters. Start with &quot;Reports mention &quot;, end with one period, and use no other sentence punctuation. Attribute reports cautiously; never infer requirements or turn allegations into facts.</p>
+        <p className="field-hint">{summaryWordCount(sentence)}/{AREA_SUMMARY_MAX_WORDS} words · {sentence.length}/{AREA_SUMMARY_MAX_SENTENCE_LENGTH} characters. Start with &quot;Reports mention &quot;, end with one period, and use no other sentence punctuation. Attribute reports cautiously; never infer requirements or turn allegations into facts.</p>
         {!summarySentenceSchema.safeParse(sentence).success && <p role="alert">Use one valid short sentence without contact details, markup or extra sentences.</p>}
         <label className={styles.confirmation}><input type="checkbox" checked={reviewed} disabled={busy}
           onChange={(event) => setReviewed(event.target.checked)} />

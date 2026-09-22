@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { POLICY_TEXT } from "../src/modules/content-policy/policy";
 
 test("production never exposes the AI demonstration", async ({ request }) => {
   test.skip(process.env.PLAYWRIGHT_PRODUCTION !== "true", "Production-only route isolation check");
@@ -13,15 +14,24 @@ test("local AI demo is usable on a phone and clearly separates loading, model ou
   const response = await page.goto("/dev/ai-demo");
   test.skip(response?.status() === 404, "Explicit local demo flag is not enabled");
   let calls = 0;
+  let allowedCalls = 0;
   await page.route("**/api/dev/ai-demo", async (route) => {
     calls++;
     const { example } = route.request().postDataJSON();
     await new Promise((resolve) => setTimeout(resolve, 200));
     if (example === "allowed-note") {
-      await route.fulfill({ status: 503, json: { error: "Content checks are temporarily unavailable. Nothing was submitted.", remaining: 7 } });
+      if (++allowedCalls === 1) {
+        await route.fulfill({ json: { source: "azure", kind: "policy", decision: "approve",
+          text: POLICY_TEXT.allowed, durationMs: 1000, remaining: 7, cached: false } });
+      } else {
+        await route.fulfill({ status: 503, json: { error: "Content checks are temporarily unavailable. Nothing was submitted.", remaining: 7 } });
+      }
     } else if (example === "unsafe-username") {
-      await route.fulfill({ json: { source: "local-rule", kind: "policy", allowed: false,
-        message: "Please remove profanity before continuing.", durationMs: 2, remaining: 7, cached: false } });
+      await route.fulfill({ json: { source: "local-rule", kind: "policy", decision: "blocked",
+        text: POLICY_TEXT.profanity, durationMs: 2, remaining: 7, cached: false } });
+    } else if (example === "abusive-note") {
+      await route.fulfill({ json: { source: "azure", kind: "policy", decision: "blocked",
+        text: POLICY_TEXT.abuse, durationMs: 1200, remaining: 7, cached: false } });
     } else {
       await route.fulfill({ json: { source: "azure", kind: "summary",
         message: "Reports mention unclear visitor permit signs.", durationMs: 4200, remaining: 7, cached: true } });
@@ -37,11 +47,20 @@ test("local AI demo is usable on a phone and clearly separates loading, model ou
   const username = page.getByRole("region", { name: "Abusive username" });
   await username.getByRole("button").click();
   await expect(username.getByText("Local policy rule / no model call")).toBeVisible();
-  await expect(username.getByText("Blocked by content policy")).toBeVisible();
+  await expect(username.getByText("Blocked", { exact: true })).toBeVisible();
+  await expect(username.getByText(POLICY_TEXT.profanity)).toBeVisible();
+  const abuse = page.getByRole("region", { name: "Personal abuse" });
+  await abuse.getByRole("button").click();
+  await expect(abuse.getByText("Blocked", { exact: true })).toBeVisible();
+  await expect(abuse.getByText(POLICY_TEXT.abuse)).toBeVisible();
   const allowed = page.getByRole("region", { name: "Factual criticism" });
   await allowed.getByRole("button").click();
+  await expect(allowed.getByText("Approve", { exact: true })).toBeVisible();
+  await expect(allowed.getByText(POLICY_TEXT.allowed)).toBeVisible();
+  await allowed.getByRole("button").click();
   await expect(allowed.getByRole("alert")).toContainText("temporarily unavailable");
-  expect(calls).toBe(3);
+  await expect(allowed.getByText("Blocked", { exact: true })).toHaveCount(0);
+  expect(calls).toBe(5);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   await page.setViewportSize({ width: 812, height: 375 });
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);

@@ -66,6 +66,10 @@ The page offers fixed synthetic samples: a one-sentence summary, allowed
 factual criticism, abusive report text and an abusive username. It labels
 actual Azure output, deterministic local-rule rejection and cached output
 separately. No accounts, private reports or image uploads are involved.
+Classifier responses use `decision: "approve" | "blocked"` with application-owned
+`text`; model-selected reason codes map to fixed plain-English explanations.
+Only summaries contain generated prose, validated to at most 20 words and
+160 characters. The strict demo response schema separates these two shapes.
 
 The API is development-only, explicitly enabled, same-origin and loopback
 restricted. It accepts only a fixed example identifier, never arbitrary text
@@ -88,11 +92,27 @@ The unsafe username was rejected by a deterministic rule without a model call.
 This proves local inference through the signed-in Azure CLI identity, not
 production managed-identity permissions or classifier completeness.
 
-Example real summary from the synthetic notes:
+The initial v1 live summary was too verbose. The v2 contract now asks for
+8-12 words and rejects anything exceeding 20 words or 160 characters.
+Old database summaries are invalidated by prepared migration 0007, not
+silently shortened or reapproved. Local process caches are also discarded
+when the changed route is reloaded; the persistent spending counter is not.
 
-> Reports mention a person was clamped after parking in a visitor space without
-> a visible permit and that visitor permit instructions were hard to read from
-> the entrance while a permit sign was later found beside the spaces.
+The refinement's live Azure check returned a **13-word, 92-character** draft:
+
+> Reports mention visitors risk clamping for parking without a clearly visible permit display.
+
+Personal abuse returned `blocked` with the fixed abuse explanation; the
+unsafe username returned the fixed profanity explanation without inference.
+One earlier noncompliant summary was rejected rather than displayed, then
+the concise-caption instructions were tightened. These three refinement
+attempts stayed within the original ten-attempt budget; there were no
+automatic retries or counter resets.
+
+The refinement passed 39 targeted unit/server contracts, 10 summary SQL
+checks, nine browser checks (one production-only case skipped in dev),
+lint, both type checks and both production builds. As before, a few synthetic
+live examples are not a classifier-quality or factual-grounding certification.
 
 Map-local notes use deterministic checks only and remain entirely in the
 browser. They never silently send private preview text to Azure. Their human
