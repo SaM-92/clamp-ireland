@@ -25,6 +25,21 @@ test("admin API and moderation reject unauthenticated requests, even with previe
   expect(decision.status()).toBe(403);
 });
 
+test("shared admin navigation includes summary review and fits a 320px phone", async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 812 });
+  for (const [path, label] of [
+    ["/admin", "Overview"],
+    ["/admin/moderation", "Moderation queue"],
+    ["/admin/summaries", "Area summaries"],
+  ]) {
+    await page.goto(path);
+    await expect(page.getByRole("link", { name: label, exact: true })).toHaveAttribute("aria-current", "page");
+    await expect(page.getByRole("link", { name: "Area summaries", exact: true })).toHaveAttribute("href", "/admin/summaries");
+    await expect(page.getByRole("link", { name: "Back to map", exact: true })).toHaveAttribute("href", "/");
+    await noOverflow(page);
+  }
+});
+
 test("375px dashboard reads only existing local reports without writing or pretending photos exist", async ({ page }) => {
   test.skip(process.env.PLAYWRIGHT_PRODUCTION === "true", "Development-only local preview.");
   await page.setViewportSize({ width: 375, height: 812 });

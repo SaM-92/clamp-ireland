@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { Icon } from "@/lib/components/Icon";
 import type { LocationSummary } from "@/modules/locations/types";
 import type { PublicReport, ReporterType } from "../types";
+import { NearbySummary } from "@/modules/area-summaries/components/NearbySummary";
 
 const REPORTER_LABELS: Record<ReporterType, string> = {
   victim: "Personal experience", neighbour: "Local resident", witness: "Witness",
@@ -61,6 +62,7 @@ export function LocationNotes({ location, previewNotes, onClose, onReport }: {
       <div className="notes-content">
         <p className="notes-summary"><span className={`legend-dot risk-${location.riskLevel}`} />{location.riskLevel} signal · {location.reportCount} reports · 100 m zone</p>
         <p className="field-hint">The circle shows an approximate area around the reports, not an official restriction or prediction. New notes need human approval before they count.</p>
+        <NearbySummary key={`${location.id}:${preview}`} locationId={location.id} preview={preview} />
         {loading ? <p role="status">Loading notes...</p> : error ?
           <div className="form-error" role="alert">{error}<button className="text-button" onClick={() => setRetry((value) => value + 1)}>Retry notes</button></div> :
           displayed.length === 0 ? <p>No approved notes to show yet.</p> :

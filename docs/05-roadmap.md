@@ -15,6 +15,8 @@ only in chat history.
       legacy requeue, restricted role updates and location RPC execution
 - [x] `0003_aggregate_traffic.sql` — service-only UTC daily pageview counters;
       opt-in collection, no visitor identity or raw event table
+- [x] `0004_reviewed_area_summaries.sql` — complete 500 m approved-source
+      snapshots, private drafts, review, freshness and generation admission
 - [x] Create GitHub repo under SaM-92 (`clamp-ireland`; initial scaffold pushed)
 - [ ] Supabase project actually created (dev) — migration has not been run
       against a real project yet
@@ -55,6 +57,11 @@ only in chat history.
 - [x] Public aggregate dashboard: "transparency signal" counters
       (`src/modules/dashboard`) — total reports, this month, high-risk
       locations, total locations
+- [x] Admin-requested GPT-5 mini nearby summaries, one short attributed
+      sentence, separate human approval and source-fresh public cache
+- [ ] Configure/approve live model usage and test actual model quality/cost
+- [ ] Verify 499/500/501 m source boundaries against a real PostGIS instance
+- [ ] Bounded batching for summary source sets beyond current 200-note/48KB limits
 - [ ] Server-side auto-blur pass (license plates/faces) as an assist before
       human review — see `04-legal-considerations.md` §4 (GDPR) — **not
       implemented yet**; human reviewer currently has no tooling to redact,
@@ -114,7 +121,8 @@ public launch.
 
 Read `06-ui-handoff.md` before changing map assets, the design system,
 preview gating, or account flows. Handoffs 07-10 cover the admin dashboard,
-appeal guide, search eligibility and support-payment setup. The app remains
+appeal guide, search eligibility and support-payment setup; handoff 11 covers
+500 m summaries. The app remains
 a prototype: these features do not complete the Phase 2/3 launch safeguards.
 
 ## Explicitly out of scope for MVP (revisit later if community grows)

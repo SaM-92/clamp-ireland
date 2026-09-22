@@ -8,8 +8,9 @@ others can check a spot before parking. It never names or accuses a company
 or individual; see `docs/00-product-plan.md` and
 `docs/04-legal-considerations.md` for why, and how that's enforced.
 
-This is a personal/community project, not a commercial product. Everything
-is built to run on free tiers.
+This is a personal/community project, not a commercial product. It targets
+very low operating costs using free tiers where appropriate; hosting,
+storage, email and model usage are not guaranteed free.
 
 **Status: local prototype, not launch-ready.** The map works without a
 backend. Live accounts, moderation, and report storage need Supabase.
@@ -74,10 +75,16 @@ Read these in order for full context (each depends on the ones before it):
   indexing, canonical domain, crawler controls and deployment checks.
 - [`docs/10-support-payments.md`](docs/10-support-payments.md) — Stripe
   Payment Links recommendation, wallet support, fees and alternatives.
+- [`docs/11-area-summaries-handoff.md`](docs/11-area-summaries-handoff.md) —
+  500 m source selection, small-model generation, review and cache freshness.
+- [`docs/13-azure-architecture-options.md`](docs/13-azure-architecture-options.md) —
+  Azure hosting/Blob recommendation, database alternatives and cost caveats;
+  deployment still requires explicit approval.
 
 Code is module-based under `src/modules/*`, one folder per domain concept
 (`scoring`, `locations`, `reports`, `moderation`, `map`, `auth`,
-`donations`, `dashboard`), each with its own `types`, client `api`, optional
+`donations`, `dashboard`, `admin`, `analytics`, `seo`, `area-summaries`),
+with domain-specific `types`, client `api`, optional
 `server/` (service-role-only logic), and `components/`. Shared, cross-module
 code lives in `src/lib` (env access, Supabase clients). Routes and API
 handlers live in `src/app`.
@@ -100,6 +107,8 @@ npm install
    [`0002_reviewed_public_notes.sql`](supabase/migrations/0002_reviewed_public_notes.sql).
    Then apply [`0003_aggregate_traffic.sql`](supabase/migrations/0003_aggregate_traffic.sql)
    for optional admin traffic counts; collection stays disabled until opted in.
+   Apply [`0004_reviewed_area_summaries.sql`](supabase/migrations/0004_reviewed_area_summaries.sql)
+   for reviewed 500 m summaries. Apply migrations once, in numeric order.
    The second migration restricts public reads to reviewed notes, prevents
    self-assigned admin roles, and restricts location creation to the server.
    It intentionally requeues legacy published reports without review stamps
@@ -142,8 +151,13 @@ Fill in:
   Supabase Auth. Put the Google OAuth client ID/secret in **Supabase**, not in
   browser variables; register the callback URL Supabase provides with Google.
   This is a Google OAuth client, not a Gmail API integration.
-- `OPENAI_API_KEY` — reserved for future AI integration. The current text
-  softener is heuristic-only; merely setting this key does not enable AI.
+- `OPENAI_API_KEY` — server-only key for optional GPT-5 mini area-summary
+  generation. Never expose it to browsers. Submission text softening remains
+  heuristic-only; this key does not enable automatic moderation.
+- `ENABLE_AREA_SUMMARIES` — default `false`. After migration 0004, enable
+  explicitly to let admins request paid model-generated drafts. Public map
+  browsing never initiates model calls. Review the data-processing/privacy
+  notice before sending approved notes to the model provider.
 - `SITE_URL` — the actual public HTTPS origin, without a path, query or
   credentials. Leave blank locally; no guessed domain is emitted.
 - `ALLOW_INDEXING` — default `false`. Enable only after the public site is
@@ -191,6 +205,26 @@ When enabled it groups counts by UTC day, public route and viewport class;
 it does not track individual journeys or deduplicate visitors. Old rows are
 pruned on subsequent traffic, not by an unattended scheduled job.
 
+### 6. Optional nearby-area summaries
+
+`/admin/summaries` is the review workspace for one-sentence summaries of
+approved notes within **500 metres** of a selected reported spot. This does
+not change the **100 m map circles** or weighted risk scores. It is a
+radius query, not a chain that joins distant neighbouring areas.
+
+An admin requests a GPT-5 mini draft, reviews/edits it, then explicitly
+approves publication. Opening a location on the public map only reads an
+approved fresh cache entry; changes to its source reports invalidate that
+entry. Summaries attribute information to reports rather than asserting a
+parking restriction or allegation as fact.
+
+Generation includes the complete selected source set or fails explicitly;
+it never silently selects only the newest notes. The current single-pass
+resource guard is 200 notes / 48,000 UTF-8 source bytes. Larger clusters need
+a future bounded batch-summarisation workflow. Local preview notes/photos
+are not sent to a model. No live inference has been performed in this
+session, and no model account or API key has been configured.
+
 ## Scripts
 ```bash
 npm run dev     # start dev server
@@ -215,8 +249,14 @@ Supabase Auth, Storage or PostGIS integration. See the UI handoff for
 production checks.
 
 ## Deploying
-Any Next.js-compatible host works; [Vercel](https://vercel.com)'s free
-Hobby tier is the path of least resistance (zero-config Next.js deploys).
+**Azure deployment is not approved or performed.** The current recommendation
+is Container Apps Consumption plus private Azure Blob, retaining Supabase
+Free for data/auth. Blob integration is not implemented yet; the current
+storage adapter still uses Supabase Storage. See the architecture handoff
+above before creating resources. Shared Azure allowances mean this is not
+a promise of free hosting.
+
+Any Next.js-compatible host can run the app.
 Set the same environment variables from `.env.local` in the host's
 dashboard — never commit `.env.local`.
 

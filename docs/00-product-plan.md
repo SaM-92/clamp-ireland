@@ -35,6 +35,7 @@ location before parking and warn others after being clamped.
 | Mobile priority | Most use is expected on phones. Search/map before report lists and statistics; touch targets, scrollable dialogs, 16px inputs, and two-finger map panning on touchscreens. |
 | Map search | OpenFreeMap Bright streets; city shortcuts include Naas. Explicit-submit Photon search covers the island of Ireland subject to OSM indexing. No guarantee of every address. |
 | Coloured areas | **100 m radius, 50% opacity, existing weighted score.** Green/amber/red per report location. Circles do not merge or create a new clustering algorithm. |
+| Area summaries | **500 m radius around the selected spot**, explicitly chosen by the owner. One small model summarises approved notes into a short, cautiously attributed sentence. Generated drafts require admin approval and become stale when source notes change. This does not change the 100 m map circles or risk scores. |
 
 ## 3. Users & contribution types (scoring intent)
 Every report is tied to a map location (pin). Report **type** and **evidence**
