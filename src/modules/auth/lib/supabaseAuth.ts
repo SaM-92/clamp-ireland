@@ -30,7 +30,7 @@ export async function signInWithGoogle(): Promise<{ error: string | null }> {
   if (!env.NEXT_PUBLIC_GOOGLE_AUTH_ENABLED) return { error: "Google sign-in is not configured yet." };
   const { error } = await createBrowserClient().auth.signInWithOAuth({
     provider: "google",
-    options: { redirectTo: window.location.origin },
+    options: { redirectTo: `${window.location.origin}/auth/username` },
   });
   return { error: error?.message ?? null };
 }

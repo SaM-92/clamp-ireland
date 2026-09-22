@@ -36,7 +36,10 @@ export function AccountMenu() {
   return (
     <div className="account-menu">
       {signedIn
-        ? <button className="nav-button" disabled={busy} onClick={handleSignOut}>{busy ? "Signing out..." : "Sign out"}</button>
+        ? <>
+          <Link className="nav-button" href="/auth/username">Your username</Link>
+          <button className="nav-button" disabled={busy} onClick={handleSignOut}>{busy ? "Signing out..." : "Sign out"}</button>
+        </>
         : <Link className="nav-button" href="/auth/sign-in">Sign in</Link>}
       {error && <p className="account-error" role="alert">{error}</p>}
     </div>

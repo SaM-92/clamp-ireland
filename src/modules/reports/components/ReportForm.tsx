@@ -5,6 +5,8 @@ import type { FormEvent } from "react";
 import type { ReporterType } from "../types";
 import { Icon } from "@/lib/components/Icon";
 import type { MapFocus } from "@/modules/map/lib/mapStyle";
+import Link from "next/link";
+import { validateContent } from "@/modules/content-policy/policy";
 
 export interface ReportFormValues {
   reporterType: ReporterType;
@@ -62,7 +64,8 @@ export function ReportForm({ onSubmit, onCancel, preview = false }: ReportFormPr
     setSubmitting(true);
     setError(null);
     try {
-      await onSubmit({ reporterType, description, incidentDate, image });
+      const checkedDescription = validateContent("report_note", description);
+      await onSubmit({ reporterType, description: checkedDescription, incidentDate, image });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong.");
     } finally {
@@ -93,8 +96,9 @@ export function ReportForm({ onSubmit, onCancel, preview = false }: ReportFormPr
           maxLength={2000}
           placeholder="For example: my car was clamped here on a Saturday afternoon."
         />
-        <span className="field-hint">Stick to the facts. Leave out names, number plates, and personal details.</span>
-        <span className="field-hint">{preview ? "This test note will be saved only in this browser until Reset preview." : "A human moderator reviews every note before it appears on the map."}</span>
+        <span className="field-hint">Factual criticism is welcome. Profanity, abuse and threats are not. Leave out names, number plates, and personal details.</span>
+        <span className="field-hint">{preview ? "Local rules only: this note stays in your browser until Reset preview and is never sent to Azure. Contextual AI is shown separately in the synthetic demo." : "A human moderator reviews every note before it appears on the map."}</span>
+        {!preview && <span className="field-hint">Before posting, <Link href="/auth/username">choose your checked public username</Link>.</span>}
       </label>
       <label className="field">
         Date it happened (optional)

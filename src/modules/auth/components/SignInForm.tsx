@@ -29,7 +29,7 @@ export function SignInForm() {
         setPassword("");
         setConfirmationSent(true);
       } else {
-        router.replace("/");
+        router.replace("/auth/username");
         router.refresh();
       }
     } catch (cause) {
@@ -55,7 +55,7 @@ export function SignInForm() {
     <div className="auth-success" role="status">
       <Icon name="check" width="28" height="28" />
       <strong>Check your email.</strong>
-      <p>If this address can be registered, a confirmation link is on its way. Confirm it once, then sign in with your password.</p>
+      <p>If this address can be registered, a confirmation link is on its way. Confirm it once, then sign in and choose a public pseudonym.</p>
       <button className="button button-surface" onClick={() => { setConfirmationSent(false); setMode("signin"); }}>Back to sign in</button>
     </div>
   );
