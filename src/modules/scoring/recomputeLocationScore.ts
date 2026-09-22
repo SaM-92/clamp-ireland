@@ -19,6 +19,7 @@ export async function recomputeLocationScore(locationId: string): Promise<void> 
     .select("reporter_type, has_image, created_at")
     .eq("location_id", locationId)
     .eq("moderation_status", "published")
+    .not("reviewed_at", "is", null)
     .eq("is_removed", false);
 
   if (error) throw error;

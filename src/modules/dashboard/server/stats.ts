@@ -28,19 +28,17 @@ export async function getTransparencyStats(): Promise<TransparencyStats> {
 
     const [totalReports, reportsThisMonth, highRiskLocations, totalLocations] = await Promise.all([
       supabase
-        .from("reports")
-        .select("*", { count: "exact", head: true })
-        .eq("moderation_status", "published")
-        .eq("is_removed", false),
+        .from("reports_public")
+        .select("*", { count: "exact", head: true }),
       supabase
-        .from("reports")
+        .from("reports_public")
         .select("*", { count: "exact", head: true })
-        .eq("moderation_status", "published")
-        .eq("is_removed", false)
         .gte("created_at", startOfMonth.toISOString()),
       supabase.from("locations").select("*", { count: "exact", head: true }).eq("risk_level", "high"),
-      supabase.from("locations").select("*", { count: "exact", head: true }),
+      supabase.from("locations").select("*", { count: "exact", head: true }).gt("report_count", 0),
     ]);
+    const failure = [totalReports, reportsThisMonth, highRiskLocations, totalLocations].find((result) => result.error);
+    if (failure?.error) throw failure.error;
 
     return {
       totalReports: totalReports.count ?? 0,
@@ -48,7 +46,8 @@ export async function getTransparencyStats(): Promise<TransparencyStats> {
       highRiskLocations: highRiskLocations.count ?? 0,
       totalLocations: totalLocations.count ?? 0,
     };
-  } catch {
-    return EMPTY_STATS;
+  } catch (error) {
+    console.error("[Dashboard] counts failed", error);
+    throw new Error("Community counts could not load. Please try again later.");
   }
 }

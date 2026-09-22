@@ -1,6 +1,6 @@
 "use client";
 
-import type { ReporterType } from "./types";
+import type { ReporterType, SubmittedReport } from "./types";
 
 export interface SubmitReportArgs {
   locationId: string;
@@ -11,7 +11,7 @@ export interface SubmitReportArgs {
   accessToken: string;
 }
 
-export async function submitReport(args: SubmitReportArgs) {
+export async function submitReport(args: SubmitReportArgs): Promise<SubmittedReport> {
   const formData = new FormData();
   formData.set("locationId", args.locationId);
   formData.set("reporterType", args.reporterType);

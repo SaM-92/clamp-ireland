@@ -1,14 +1,20 @@
 import { DONATION_URL } from "../config";
+import { Icon } from "@/lib/components/Icon";
 
 export function DonateButton({ className = "" }: { className?: string }) {
+  if (!DONATION_URL) {
+    return <span className={`support-placeholder ${className}`} title="Donation link coming soon">
+      <Icon name="coffee" /> <span>Support us <span className="support-soon">soon</span></span>
+    </span>;
+  }
   return (
     <a
       href={DONATION_URL}
       target="_blank"
       rel="noopener noreferrer"
-      className={`inline-flex items-center gap-2 whitespace-nowrap rounded-full bg-amber-400 px-4 py-2 text-sm font-semibold text-amber-950 transition-colors hover:bg-amber-300 ${className}`}
+      className={`button button-support ${className}`}
     >
-      <span aria-hidden>☕</span> Buy us a coffee
+      <Icon name="coffee" /> <span>Buy us a coffee</span>
     </a>
   );
 }

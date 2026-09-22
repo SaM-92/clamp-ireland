@@ -1,13 +1,20 @@
 import { SignInForm } from "@/modules/auth/components/SignInForm";
+import Link from "next/link";
+import { isSupabaseConfigured } from "@/lib/env";
 
 export default function SignInPage() {
+  const preview = process.env.NODE_ENV === "development" && !isSupabaseConfigured;
   return (
-    <main className="mx-auto flex max-w-md flex-col gap-4 p-6">
-      <h1 className="text-xl font-bold">Sign in</h1>
-      <p className="text-sm text-black/60 dark:text-white/60">
-        We use email-only magic links — no passwords, and it keeps casual
-        bots out. You&apos;ll get a link in your inbox to finish signing in.
+    <main id="main-content" className="auth-shell">
+      <p className="eyebrow">A community looking out for each other</p>
+      <h1>Welcome to the map.</h1>
+      <p className="auth-description">
+        Browse freely. Sign in to share an experience. Confirm your email once when you create an account; no extra verification code each time.
       </p>
+      {preview && <div className="auth-preview">
+        Just trying things out? Local preview works without an account or a connected database.
+        <Link href="/" className="button button-surface">Continue to local preview</Link>
+      </div>}
       <SignInForm />
     </main>
   );

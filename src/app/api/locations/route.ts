@@ -7,7 +7,7 @@ export async function GET() {
   if (!isSupabaseConfigured) return NextResponse.json([]);
 
   const supabase = createAnonServerClient();
-  const { data, error } = await supabase.from("locations_public").select("*");
+  const { data, error } = await supabase.from("locations_public").select("*").gt("report_count", 0);
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }

@@ -30,6 +30,9 @@ export async function POST(request: Request) {
   if (!REPORTER_TYPES.includes(reporterType as ReporterType)) {
     return NextResponse.json({ error: "Invalid reporterType." }, { status: 400 });
   }
+  if (!description.trim() || description.length > 2000) {
+    return NextResponse.json({ error: "Describe what happened using 1 to 2000 characters." }, { status: 400 });
+  }
 
   let imagePath: string | null = null;
   if (image instanceof File && image.size > 0) {

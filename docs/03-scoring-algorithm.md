@@ -7,8 +7,10 @@ if they ever disagree, the code is what actually runs; update this file to
 match, not the other way round.
 
 ## 1. Inputs
-Only reports that are `moderation_status = 'published'` and `is_removed =
-false` are counted (`recomputeLocationScore.ts`). A report contributes:
+Only reports that are `moderation_status = 'published'`, have a nonnull
+`reviewed_at`, and have `is_removed = false` are counted
+(`recomputeLocationScore.ts`). All new reports await human approval.
+A report contributes:
 - `reporterType`: `victim` | `neighbour` | `witness`
 - `hasImage`: boolean
 - `createdAt`: timestamp
@@ -25,11 +27,9 @@ base point value (`constants.ts`):
 
 Rationale: a victim's own account of being clamped is the strongest signal
 a location is genuinely risky; a witness account is corroborating but
-weaker. A photo roughly doubles a report's weight within its own category,
-reflecting stronger evidence — but never crosses into a higher reporter
-tier (e.g. a witness-with-photo, 4 points, still counts for less than a
-neighbour-without-photo, 3 points, is close but a victim-without-photo, 6
-points, always outweighs it).
+weaker. A photo increases a report's weight within its category. The categories
+overlap: a witness with a photo (4) outweighs a local resident without one
+(3), but remains below a personal account without a photo (6).
 
 ## 3. Time decay
 Reports lose relevance over time — a clamping company's behaviour today
@@ -87,7 +87,19 @@ stale between recomputes as reports age. A scheduled recompute (e.g. daily,
 via a Supabase Edge Function or Vercel Cron) is a tracked roadmap item, not
 yet implemented — see `05-roadmap.md`.
 
-## 7. Anti-brigading
+## 7. Map areas
+Each report location is drawn as a geodesic **100 m radius** circle with
+**0.5 fill opacity** under street labels. The same thresholds above determine
+green, amber and red; report count alone does not choose colour. The 100 m
+radius is visual context, not a risk boundary or a new grouping distance:
+real reports still attach to a location within approximately 30 m.
+Overlapping circles remain separate and can look darker where they overlap.
+Preview uses the same weights with simulated approval and approximate
+coordinate grouping; it is not public evidence.
+
+Scoring age uses submission `created_at`, not the optional incident date.
+
+## 8. Anti-brigading
 Not yet implemented. The current formula has no per-user cap, so in theory
 one account submitting many reports for the same location could inflate its
 score. Tracked as a roadmap item (e.g. cap contribution per user per

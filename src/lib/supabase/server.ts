@@ -47,6 +47,6 @@ export async function getUserFromRequest(
 
   const supabase = createAnonServerClient();
   const { data, error } = await supabase.auth.getUser(token);
-  if (error || !data.user) return null;
+  if (error || !data.user?.email_confirmed_at) return null;
   return { id: data.user.id, email: data.user.email ?? null };
 }

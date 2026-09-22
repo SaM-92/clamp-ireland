@@ -1,4 +1,4 @@
-# Roadmap / Phased Backlog (v2 — updated after initial implementation)
+# Roadmap / Phased Backlog (v4 — mobile streets, notes and zones)
 
 Depends on: 00-product-plan.md, 01-architecture.md, 02-data-model.md,
 03-scoring-algorithm.md, 04-legal-considerations.md.
@@ -11,27 +11,41 @@ only in chat history.
 - [x] Module-based structure under `src/modules/*`
 - [x] Base `.env.example` documenting every required secret
 - [x] `supabase/migrations/0001_init.sql` — full schema, RLS, RPC
-- [ ] Create GitHub repo under SaM-92 and push (not yet done)
+- [x] `0002_reviewed_public_notes.sql` — review gate, safe public notes view,
+      legacy requeue, restricted role updates and location RPC execution
+- [x] Create GitHub repo under SaM-92 (`clamp-ireland`; initial scaffold pushed)
 - [ ] Supabase project actually created (dev) — migration has not been run
       against a real project yet
 - [ ] PWA plugin wired in (manifest.json placeholder exists, no icons/SW yet)
 - [ ] Vercel project linked, deploys on push to main
 
 ## Phase 1 — Core map + auth (MVP walking skeleton)
-- [x] Email magic-link sign-in via Supabase Auth (`src/modules/auth`)
-- [x] Map view (MapLibre GL) centered on Ireland (`src/modules/map`)
+- [x] Email/password sign-in and one-time confirmation flow; optional Google
+      OAuth button behind configuration (`src/modules/auth`). Supersedes
+      magic links. Real email delivery/Google credentials not tested yet.
+- [x] MapLibre street map, Dublin default, OpenFreeMap Bright, city shortcuts,
+      user-triggered geolocation, visible error/retry state
+- [x] Naas/city shortcuts and explicit-submit Photon town/street search,
+      island-of-Ireland filtering, caching, no-results/error handling
+- [x] Explicit version-matched worker/shared assets in dev and production
+- [x] Development-only no-auth preview; browser-local pins/counts, reset,
+      local note text with simulated approval, no backend writes or stored
+      photo files; production remains authenticated
 - [x] Drop a pin -> `find_or_create_location` RPC (server-side only, per RLS)
 - [x] Submit a report with/without image (reporter_type selector, description)
 - [x] Risk-level colour-coded pins driven by the real scoring engine
+- [x] Clickable pins/areas with latest 50 reviewed notes; 100 m circles at
+      50% opacity, weighted green/amber/red signal, show/hide toggle
 - [ ] Manual smoke test against a **live** Supabase project (only tested
       against the graceful "not configured" fallback so far)
 
 ## Phase 2 — Evidence & scoring
 - [x] Image upload flow (Supabase Storage, private `report-images` bucket)
-- [x] **Human-in-the-loop image review queue** — every report with an image
+- [x] **Human-in-the-loop text and image review queue** — every report
       starts `moderation_status = 'pending'`; admin approves/rejects via
-      `src/modules/moderation` before it's ever public
-- [x] **AI text-softening pass** for report descriptions — interface at
+      `src/modules/moderation`, editing public text and confirming review
+      before it counts or becomes public
+- [x] **Heuristic editing aid**, not AI anonymisation — interface at
       `src/modules/reports/server/textSoftening.ts`; currently a heuristic
       fallback (de-shouts, trims exclamation spam); real model call behind
       `OPENAI_API_KEY` is a stubbed TODO, not yet implemented
@@ -50,7 +64,7 @@ only in chat history.
 ## Phase 3 — Anti-abuse & legal-required features (not started)
 - [ ] Cloudflare Turnstile on signup + report submission
 - [ ] Per-account/IP rate limiting
-- [ ] Anti-brigading cap in the scoring engine (see `03-scoring-algorithm.md` §7)
+- [ ] Anti-brigading cap in the scoring engine (see `03-scoring-algorithm.md` §8)
 - [ ] Real notice-and-action flow (flag button + admin queue UI, published
       contact email, statement-of-reasons/appeal) — see
       `04-legal-considerations.md` §3 (DSA)
@@ -64,6 +78,18 @@ only in chat history.
 - [x] "Support this project" donation link (`src/modules/donations`) —
       placeholder URL, swap in a real Buy Me a Coffee / Ko-fi link before
       launch
+- [x] Minimal light responsive map-first UI, keyboard report selection,
+      focus-managed reporting dialog, SVG icons, compact counters and legend
+- [x] Playwright coverage for actual street rendering, worker MIME/URL,
+      local preview persistence, mobile/landscape layout, failed-map retry,
+      city/geolocation controls, and unauthenticated-write rejection
+- [x] Search, note persistence, safe text rendering, measured 100 m geometry
+      and 0.5 opacity; embedded Postgres publication/access policy checks
+- [x] Touch-phone workflows at 320/375/390/430px, landscape, reduced-height
+      forms, map before list/stats, 16px fields and cooperative map gestures
+- [ ] Physical iPhone Safari / Android Chrome checks, including native
+      keyboard, photo picker, location permission and installed PWA behavior
+- [ ] Password reset flow for live email/password accounts
 - [ ] Installable PWA (manifest, icons, offline shell)
 - [ ] Share-a-location link (for warning friends before they park)
 - [ ] Basic analytics (privacy-respecting, e.g. Plausible free/self-host or none)
@@ -71,7 +97,13 @@ only in chat history.
 ## Naming
 Working name "ClampWatch" / "Clamp Transparency Signal" — repo is currently
 named `clamp-ireland` locally. Confirm final public name/domain before
-Phase 0's GitHub repo creation.
+public launch.
+
+## Latest implementation handoff
+
+Read `06-ui-handoff.md` before changing map assets, the design system,
+preview gating, or account flows. The redesigned app is still a prototype:
+this UI work does not complete the Phase 2/3 launch safeguards.
 
 ## Explicitly out of scope for MVP (revisit later if community grows)
 - Native mobile apps

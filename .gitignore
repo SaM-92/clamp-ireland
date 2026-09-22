@@ -12,6 +12,9 @@
 
 # testing
 /coverage
+/playwright-report/
+/test-results/
+/public/vendor/maplibre/
 
 # next.js
 /.next/

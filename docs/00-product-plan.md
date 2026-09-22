@@ -2,7 +2,7 @@
 
 Status: DRAFT v1 — agreed decisions baked in, implementation underway.
 Owner: @SaM-92 (personal project)
-Last updated: 2026-09-21
+Last updated: 2026-09-22
 
 ## 0. Positioning / framing
 The product is deliberately framed as a **transparency signal**, not an
@@ -24,11 +24,17 @@ location before parking and warn others after being clamped.
 ## 2. Decisions locked in with the user (2026-09-21)
 | Topic | Decision |
 |---|---|
-| Naming clamping companies | **Location-only risk score.** The app itself never asserts a named company is guilty. Company names may appear only inside free-text user descriptions (as user speech, with a disclaimer), not as a structured/scored entity. Lowest defamation exposure. |
-| Moderation (updated 2026-09-21) | **Images:** human-in-the-loop review before publish — a moderator confirms relevance and blurs/redacts faces/plates. **Text:** AI rephrasing pass that softens angry tone and strips stray names, preserving the facts (time/location/what happened); the rephrased version is what's published. See `04-legal-considerations.md` §6 for full rationale. Abuse/flag button + admin takedown still exists as a backstop for anything that slips through. |
+| Naming clamping companies | **Location-only signal.** Public wording must avoid identifying or accusing people or companies. Moderators edit or reject unsuitable notes; no company reputation entities are scored. This reduces, not eliminates, legal risk. |
+| Moderation (supersedes initial AI plan) | **All text and photos require human approval until real AI moderation is ready.** The existing heuristic is only an editing aid. Moderators edit public wording and explicitly confirm review; reject images needing redaction because blurring tooling is not implemented. Notice/flag/appeal flows remain backlog, not completed safeguards. |
 | Platform | **Web app only**, mobile-friendly, installable **PWA**. No native app store cost/overhead for MVP. |
 | Budget ceiling | **Up to ~$10/month.** Everything must run on free tiers first; the $10 is headroom (e.g. a paid geocoding tier or a domain name), not a starting cost. |
 | Stack | Agent's choice, optimized for lowest cost + easiest solo maintenance: **Next.js + Postgres**, single free-tier host. |
+| Sign-in (updated 2026-09-22) | Browse without an account; email/password with one-time email confirmation to contribute. Optional Google OAuth after provider setup. No app-imposed two-factor authentication. |
+| Local preview | Development without Supabase has browser-local test reporting, visibly separated from public reports. Never bypass API authentication or enable this mode in production. |
+| Visual design | Minimal light, map-first interface with street detail, neutral wording, compact counts, and accessible report entry. See `06-ui-handoff.md`. |
+| Mobile priority | Most use is expected on phones. Search/map before report lists and statistics; touch targets, scrollable dialogs, 16px inputs, and two-finger map panning on touchscreens. |
+| Map search | OpenFreeMap Bright streets; city shortcuts include Naas. Explicit-submit Photon search covers the island of Ireland subject to OSM indexing. No guarantee of every address. |
+| Coloured areas | **100 m radius, 50% opacity, existing weighted score.** Green/amber/red per report location. Circles do not merge or create a new clustering algorithm. |
 
 ## 3. Users & contribution types (scoring intent)
 Every report is tied to a map location (pin). Report **type** and **evidence**
@@ -44,16 +50,17 @@ Exact numeric weights, decay-over-time, and anti-brigading rules are in
 `03-scoring-algorithm.md`, and are implemented in `src/modules/scoring/`.
 
 ## 4. Anti-bot / anti-abuse approach
-- Email-only passwordless sign-in (magic link, via Supabase Auth) — no
-  passwords to leak, cheap, filters out the laziest bots.
+- Email/password via Supabase Auth with email confirmation enabled, plus
+  optional Google OAuth. This supersedes the original magic-link plan.
+  Verification reduces casual abuse but does not prove a report is genuine.
 - Cloudflare Turnstile (free, privacy-friendlier than reCAPTCHA) on
   signup/report submission — tracked as a roadmap item, not yet implemented.
 - Per-account and per-IP rate limits on report submission — roadmap item.
-- Flag/report button on every pin + every report, feeding a lightweight
-  admin queue (manual takedown only, not manual pre-approval of text).
+- A flag/report/appeal flow remains required before launch. The implemented
+  admin queue pre-approves all text and images.
 - EXIF stripped from uploaded images server-side before storage — roadmap
   item, alongside the human-in-the-loop review queue that already gates
-  every image today.
+  every report today.
 
 ## 5. Legal / compliance notes (Ireland + GDPR — non-negotiable, must ship with MVP)
 - Privacy Policy + Terms of Service required before public launch (GDPR).
@@ -76,6 +83,6 @@ Exact numeric weights, decay-over-time, and anti-brigading rules are in
   (`src/modules/donations/`) — just a link, no payment code in this repo.
 
 ## 7. Open items for next planning pass
-- Final pick between candidate map/geocoding providers, pending confirmation
-  of expected monthly pin/search volume (see `01-architecture.md`).
+- Confirm expected search volume and provider fair-use before public launch
+  (see `01-architecture.md`).
 - Domain name choice (affects the $10/month headroom).

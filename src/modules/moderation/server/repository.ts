@@ -4,7 +4,7 @@ import { getSignedImageUrl } from "@/modules/reports/server/imageStorage";
 import { recomputeLocationScore } from "@/modules/scoring";
 import type { PendingReport } from "../types";
 
-/** Reports awaiting human review — see docs/00-product-plan.md, "human-in-the-loop image review". */
+/** Text and photos awaiting human review. */
 export async function listPendingReports(): Promise<PendingReport[]> {
   const supabase = createServiceRoleClient();
   const { data, error } = await supabase
@@ -28,13 +28,18 @@ export async function listPendingReports(): Promise<PendingReport[]> {
   );
 }
 
-/** Publishes a report after a moderator has confirmed/redacted its image. */
-export async function approveReport(reportId: string) {
+/** Publish the reviewed wording without changing the private original. */
+export async function approveReport(reportId: string, description: string, reviewerId: string) {
   const supabase = createServiceRoleClient();
   const { data, error } = await supabase
     .from("reports")
-    .update({ moderation_status: "published" })
+    .update({
+      moderation_status: "published", description,
+      reviewed_at: new Date().toISOString(), reviewed_by: reviewerId,
+    })
     .eq("id", reportId)
+    .eq("moderation_status", "pending")
+    .eq("is_removed", false)
     .select()
     .single();
   if (error) throw error;
@@ -52,5 +57,6 @@ export async function rejectReport(reportId: string) {
     .select()
     .single();
   if (error) throw error;
+  await recomputeLocationScore(data.location_id as string);
   return data;
 }

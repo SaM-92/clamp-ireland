@@ -1,16 +1,13 @@
-import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import type { Metadata, Viewport } from "next";
+import { Geist } from "next/font/google";
 import Link from "next/link";
 import "./globals.css";
 import { DonateButton } from "@/modules/donations/components/DonateButton";
+import { Icon } from "@/lib/components/Icon";
+import { AccountMenu } from "@/modules/auth/components/AccountMenu";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
   subsets: ["latin"],
 });
 
@@ -21,32 +18,39 @@ export const metadata: Metadata = {
   manifest: "/manifest.json",
 };
 
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+  interactiveWidget: "resizes-content",
+};
+
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${geistSans.variable} h-full antialiased`}
       suppressHydrationWarning
     >
-      <body className="flex min-h-full flex-col bg-zinc-50 dark:bg-black" suppressHydrationWarning>
-        <header className="flex h-16 items-center justify-between border-b border-black/10 px-4 dark:border-white/10">
-          <Link href="/" className="font-semibold">
-            🚧 Clamp Transparency Signal
+      <body>
+        <a className="skip-link" href="#main-content">Skip to content</a>
+        <header className="site-header">
+          <Link href="/" className="brand" aria-label="Clamp Transparency Signal home">
+            <span className="brand-mark"><Icon name="pin" width="25" height="25" /></span>
+            <span>Clamp<span className="brand-subtitle">Transparency Signal</span></span>
           </Link>
-          <nav className="flex items-center gap-4 text-sm">
-            <Link href="/auth/sign-in">Sign in</Link>
+          <nav className="header-nav" aria-label="Main navigation">
+            <Link href="/#how-it-works" className="nav-explainer">How it works</Link>
+            <AccountMenu />
             <DonateButton />
           </nav>
         </header>
-        <div className="flex-1">{children}</div>
-        <footer className="border-t border-black/10 px-4 py-3 text-xs text-black/60 dark:border-white/10 dark:text-white/60">
-          Reports are user submissions describing personal experience at a
-          location, not verified findings and not accusations against any
-          named business. See our forthcoming Privacy Policy &amp; Terms of
-          Service. Contact: hello@clamptransparency.example (placeholder).
+        {children}
+        <footer className="site-footer">
+          <span>Built for the community. Not for profit.</span>
+          <span>Community reports, not verified findings. Always check local parking signs.</span>
         </footer>
       </body>
     </html>
   );
 }
-
