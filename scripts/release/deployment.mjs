@@ -3,6 +3,8 @@ import { writeFileSync, mkdirSync, appendFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 import { validateRelease } from "./metadata.mjs";
 import { smokeApp, smokeOrigin } from "./smoke.mjs";
+import { requireNetworkIsolationReady } from "./network-policy.mjs";
+import { isIP } from "node:net";
 
 export function imageReference(repository, digest, app) {
   if (!/^[a-z0-9_.-]+\/[a-z0-9_.-]+$/.test(repository) || !["public", "admin"].includes(app) ||
@@ -11,8 +13,19 @@ export function imageReference(repository, digest, app) {
 }
 
 export function deploymentSettings(source) {
-  if (source.ENABLE_PRODUCTION_DEPLOY !== "true") throw new Error("Production deployment is not explicitly enabled.");
+  const environment = source.DEPLOY_ENVIRONMENT ?? "production";
+  if (!["production", "development"].includes(environment)) throw new Error("Unknown deployment environment.");
+  const optIn = environment === "production" ? source.ENABLE_PRODUCTION_DEPLOY : source.ENABLE_DEVELOPMENT_DEPLOY;
+  if (optIn !== "true") throw new Error(`${environment} deployment is not explicitly enabled.`);
   if (source.GITHUB_REF !== "refs/heads/master") throw new Error("Dispatch deployment from master only.");
+  let approvedIps;
+  try { approvedIps = JSON.parse(source.APPROVED_CLIENT_IPV4S); }
+  catch { throw new Error("Configure APPROVED_CLIENT_IPV4S privately as a non-empty JSON array."); }
+  if (!Array.isArray(approvedIps) || approvedIps.length < 1 || approvedIps.length > 8 ||
+      new Set(approvedIps).size !== approvedIps.length ||
+      approvedIps.some((ip) => typeof ip !== "string" || isIP(ip) !== 4 || ip === "0.0.0.0")) {
+    throw new Error("One to eight distinct approved IPv4 hosts are required; CIDR ranges and public fallback rules are forbidden.");
+  }
   for (const key of ["AZURE_CLIENT_ID", "AZURE_TENANT_ID", "AZURE_SUBSCRIPTION_ID", "AZURE_RESOURCE_GROUP",
     "PUBLIC_CONTAINER_APP", "ADMIN_CONTAINER_APP", "PUBLIC_SITE_ORIGIN", "ADMIN_SITE_ORIGIN"]) {
     if (!source[key]?.trim()) throw new Error(`Missing required deployment setting: ${key}.`);
@@ -25,15 +38,32 @@ export function deploymentSettings(source) {
   validateRelease(source.RELEASE_VERSION, source.RELEASE_SHA);
   const repository = source.GITHUB_REPOSITORY.toLowerCase();
   return {
+    environment,
+    approvedCidrs: approvedIps.map((ip) => `${ip}/32`),
     group: source.AZURE_RESOURCE_GROUP,
     public: { app: source.PUBLIC_CONTAINER_APP, origin: source.PUBLIC_SITE_ORIGIN, image: imageReference(repository, source.PUBLIC_DIGEST, "public") },
     admin: { app: source.ADMIN_CONTAINER_APP, origin: source.ADMIN_SITE_ORIGIN, image: imageReference(repository, source.ADMIN_DIGEST, "admin") },
   };
 }
 
-export function assertExistingTarget(target, origin) {
+export function assertExistingTarget(target, origin, environment = "production", approvedCidrs) {
+  if (environment === "development" && (target?.tags?.environment !== "development" || target?.tags?.workload !== "clamp-ireland")) {
+    throw new Error("Development promotion requires explicitly tagged Clamp Ireland development targets.");
+  }
+  if (environment === "production" && target?.tags?.environment && target.tags.environment !== "production") {
+    throw new Error("Production promotion cannot target a non-production application.");
+  }
   const properties = target?.properties;
   const configuration = properties?.configuration;
+  const restrictions = configuration?.ingress?.ipSecurityRestrictions;
+  if (!Array.isArray(restrictions) || !restrictions.length ||
+      restrictions.some((rule) => rule.action !== "Allow" || typeof rule.ipAddressRange !== "string" ||
+        !rule.ipAddressRange.endsWith("/32") || isIP(rule.ipAddressRange.slice(0, -3)) !== 4) ||
+      (approvedCidrs && (restrictions.length !== approvedCidrs.length ||
+        restrictions.some((rule) => !approvedCidrs.includes(rule.ipAddressRange)) ||
+        new Set(restrictions.map((rule) => rule.ipAddressRange)).size !== approvedCidrs.length))) {
+    throw new Error("Application ingress must allow exactly the approved IPv4 hosts and deny all other clients.");
+  }
   if (configuration?.activeRevisionsMode !== "Single" || !configuration.ingress?.external ||
       configuration.ingress.targetPort !== 3000 || configuration.ingress.allowInsecure === true ||
       properties?.template?.containers?.length !== 1 || !properties.template.containers[0].name) {
@@ -54,11 +84,12 @@ export function deploymentOutcome(apps) {
 export function assertProtectedEnvironment(environment) {
   const reviewers = environment?.protection_rules?.find((rule) => rule.type === "required_reviewers");
   if (!reviewers?.reviewers?.length || reviewers.prevent_self_review !== true) {
-    throw new Error("Production environment must require reviewer approval and prevent self-review.");
+    throw new Error("Deployment environment must require reviewer approval and prevent self-review.");
   }
 }
 
 function azure(args) {
+  requireNetworkIsolationReady();
   try {
     return JSON.parse(execFileSync("az", [...args, "--only-show-errors", "--output", "json"], {
       encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], maxBuffer: 2 * 1024 * 1024,
@@ -72,7 +103,9 @@ function azure(args) {
 
 export async function deploy(source = process.env, transport = azure, smoke = smokeApp, sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))) {
   const record = {
-    schemaVersion: 1, version: source.RELEASE_VERSION, sha: source.RELEASE_SHA,
+    schemaVersion: 2, environment: ["development", "production"].includes(source.DEPLOY_ENVIRONMENT ?? "production")
+      ? source.DEPLOY_ENVIRONMENT ?? "production" : null,
+    version: source.RELEASE_VERSION, sha: source.RELEASE_SHA,
     runId: source.GITHUB_RUN_ID, attempt: source.GITHUB_RUN_ATTEMPT,
     startedAt: new Date().toISOString(), finishedAt: null, outcome: "failure",
     apps: {
@@ -86,7 +119,7 @@ export async function deploy(source = process.env, transport = azure, smoke = sm
     const containers = {};
     // Preflight both resources before changing either one; never provision or set secrets.
     for (const app of ["public", "admin"]) {
-      containers[app] = assertExistingTarget(transport(["containerapp", "show", "--name", settings[app].app, "--resource-group", settings.group]), settings[app].origin);
+      containers[app] = assertExistingTarget(transport(["containerapp", "show", "--name", settings[app].app, "--resource-group", settings.group]), settings[app].origin, settings.environment, settings.approvedCidrs);
     }
     for (const app of ["public", "admin"]) {
       const target = settings[app];
@@ -101,6 +134,7 @@ export async function deploy(source = process.env, transport = azure, smoke = sm
         if (properties?.provisioningState === "Succeeded" &&
             properties.latestRevisionName && properties.latestRevisionName === properties.latestReadyRevisionName &&
             properties.template?.containers?.[0]?.image === target.image) {
+          assertExistingTarget(state, target.origin, settings.environment, settings.approvedCidrs);
           ready = true;
           break;
         }

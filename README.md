@@ -108,6 +108,8 @@ Read these in order for full context (each depends on the ones before it):
   report/username policy checks, onboarding and direct-write restrictions.
 - [`docs/17-azure-ai-handoff.md`](docs/17-azure-ai-handoff.md) — shared Azure
   model provider, local live demonstration and bounded inference.
+- [`docs/18-private-deployment-and-photos.md`](docs/18-private-deployment-and-photos.md) —
+  processed private Blob photos, IP restrictions and the enforced deployment hold.
 
 Code is module-based under `src/modules/*`, one folder per domain concept
 (`scoring`, `locations`, `reports`, `moderation`, `map`, `auth`,
@@ -122,7 +124,9 @@ Next.js build and shared domain modules.
 
 ## Prerequisites
 - Node.js 24 (the CI/container baseline)
-- A free [Supabase](https://supabase.com) account (for Postgres + Auth + Storage)
+- A PostgreSQL/PostGIS and Auth backend compatible with the current Supabase
+  integration. Hosted Supabase does not satisfy the current all-endpoint
+  IP-isolation requirement; see handoff 18 before provisioning.
 
 ## Tests and release preparation
 
@@ -130,6 +134,7 @@ Next.js build and shared domain modules.
 npm run test:unit
 npm run test:sql
 npm run test:release
+npm run test:infra
 ```
 
 GitHub Actions runs these gates, lint, both production builds and
@@ -180,14 +185,18 @@ npm install
    (Alternatively, if you have the
    [Supabase CLI](https://supabase.com/docs/guides/cli) linked to the
    project, `supabase db push` applies pending migrations.)
-3. In **Storage**, create a new bucket named `report-images` and set it to
-   **private** (not public). Moderators receive temporary signed URLs in the
-   protected review queue. Public notes expose no photos or storage paths.
+3. Photo storage now uses a private Azure Blob container named `report-images`,
+   not Supabase Storage. Source photos up to 50 MiB / 64 MP are normalized to
+   metadata-free WebP at most 3 MiB. Public notes expose no photos or storage
+   paths. Azure provisioning is blocked pending the private-network design.
 4. In **Authentication → Providers**, enable Email and **Confirm email**.
    Registration uses email/password with a one-time confirmation link.
    Subsequent sign-in uses the password; this app does not add two-factor
    authentication. Configure SMTP for delivery beyond Supabase's limited
    development email service.
+   For the test deployment, provider-side new-user registration must be closed
+   after the two testers have genuinely confirmed their accounts. Hiding signup
+   in the app is not a provider-side restriction.
    Set the Auth Site URL and allow `http://localhost:3001`,
    `http://localhost:3001/auth/sign-in`, and the corresponding deployed URLs.
 5. Copy your Project URL, `anon` public key, and `service_role` secret key
@@ -213,6 +222,11 @@ Fill in:
   Supabase Auth. Put the Google OAuth client ID/secret in **Supabase**, not in
   browser variables; register the callback URL Supabase provides with Google.
   This is a Google OAuth client, not a Gmail API integration.
+- `NEXT_PUBLIC_REGISTRATION_ENABLED` — defaults to `false`; the current
+  deployment is invitation-only testing, not a public community launch.
+- `AZURE_STORAGE_ACCOUNT_NAME`, `AZURE_STORAGE_AUTH_MODE` — private Blob
+  evidence, with `managed-identity` for hosted applications. Explicit
+  `azure-cli` is permitted locally only; there is no storage-key fallback.
 - `AI_PROVIDER=azure`, `AZURE_OPENAI_ENDPOINT`,
   `AZURE_OPENAI_DEPLOYMENT=gpt-5-mini`, `AZURE_OPENAI_AUTH_MODE=entra` —
   the public server's report/username classifier and the separate admin
@@ -349,12 +363,12 @@ before running these tests, because both use the admin project's development
 build directory. The community preview can stay running on port 3001.
 
 ## Deploying
-**Azure deployment is not approved or performed.** The current recommendation
-is separate public/admin Container Apps Consumption deployments plus private Azure Blob, retaining Supabase
-Free for data/auth. Blob integration is not implemented yet; the current
-storage adapter still uses Supabase Storage. See the architecture handoff
-above before creating resources. Shared Azure allowances mean this is not
-a promise of free hosting.
+**Nothing has been deployed; cloud deployment is hard-blocked.** The owner
+requires IP isolation for both websites and every direct backend endpoint.
+Website/Blob restriction templates and the Blob adapter are implemented, but
+hosted Supabase's IP controls do not cover Auth/REST HTTPS APIs. The private
+backend/connectivity design must change before deploying. See handoff 18 and
+`.azure/deployment-plan.md`. No public-access exception is authorized.
 
 Any Next.js-compatible host can run the app.
 Set the same environment variables from `.env.local` in the host's

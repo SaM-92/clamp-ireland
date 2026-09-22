@@ -38,7 +38,7 @@ Index: `CREATE INDEX ON locations USING GIST (geom);`
 | user_id | uuid FK -> profiles | private account link |
 | reporter_type | text | 'victim' \| 'neighbour' \| 'witness' |
 | has_image | boolean | derived from whether `image_url` is set |
-| image_url | text nullable | Supabase Storage object path |
+| image_url | text nullable | Private Azure Blob object path for processed WebP evidence; never a public URL |
 | description | text nullable | draft initially; edited/reviewed public wording after approval |
 | description_raw | text nullable | private original; never in public notes |
 | incident_date | date nullable | when the clamping/incident happened, user-supplied |

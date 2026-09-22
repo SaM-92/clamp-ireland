@@ -15,8 +15,8 @@ export class ProfileError extends Error {
   }
 }
 
-export async function getPublicIdentity(userId: string): Promise<PublicIdentity> {
-  const { data, error } = await createServiceRoleClient().from("profiles")
+export async function getPublicIdentity(userId: string, signal?: AbortSignal): Promise<PublicIdentity> {
+  const { data, error } = await createServiceRoleClient(signal).from("profiles")
     .select("display_name, username_policy_checked_at, is_banned").eq("id", userId).single();
   if (error || !data || typeof data.is_banned !== "boolean") {
     throw new ContentPolicyError("content_policy_unavailable", 503, POLICY_UNAVAILABLE_MESSAGE);
@@ -27,8 +27,8 @@ export async function getPublicIdentity(userId: string): Promise<PublicIdentity>
   return { username: approved ? data.display_name : null, needsOnboarding: !approved };
 }
 
-export async function requirePublicIdentity(userId: string): Promise<void> {
-  if ((await getPublicIdentity(userId)).needsOnboarding) {
+export async function requirePublicIdentity(userId: string, signal?: AbortSignal): Promise<void> {
+  if ((await getPublicIdentity(userId, signal)).needsOnboarding) {
     throw new ProfileError("username_required", 409, "Choose a public username in your account before submitting a report.");
   }
 }

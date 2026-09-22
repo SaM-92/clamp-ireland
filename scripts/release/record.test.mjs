@@ -37,9 +37,18 @@ test("attempt records identify the resolved release separately from dispatch and
   assert.deepEqual(record.smoke.deployment.public, { outcome: "passed", attempts: 1 });
   assert.ok(!JSON.stringify(record).includes("never-publish"));
   assert.deepEqual(Object.keys(record).sort(), [
-    "schemaVersion", "version", "sha", "tag", "dispatchSha", "runId", "attempt", "finishedAt",
+    "schemaVersion", "environment", "version", "sha", "tag", "dispatchSha", "runId", "attempt", "finishedAt",
     "outcome", "deploymentRequested", "images", "jobs", "updates", "smoke",
   ].sort());
+});
+
+test("development evidence cannot be mistaken for production or accepted across environments", () => {
+  const dev = { ...evidence(), environment: "development" };
+  assert.equal(createAttemptRecord({ ...source, DEPLOY_ENVIRONMENT: "development" }, dev).outcome, "success");
+  assert.equal(createAttemptRecord({ ...source, DEPLOY_ENVIRONMENT: "development" }, dev).environment, "development");
+  assert.notEqual(createAttemptRecord(source, dev).outcome, "success");
+  assert.notEqual(createAttemptRecord({ ...source, DEPLOY_ENVIRONMENT: "development" }, evidence()).outcome, "success");
+  assert.notEqual(createAttemptRecord({ ...source, DEPLOY_ENVIRONMENT: "unknown" }, evidence()).outcome, "success");
 });
 
 test("attempt recording never infers successful deployment from a green job without matching evidence", () => {

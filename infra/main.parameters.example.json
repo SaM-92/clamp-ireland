@@ -1,0 +1,18 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "clientNetwork": { "value": { "allowedClientIpv4": ["REPLACE_PRIVATELY_WITH_APPROVED_PUBLIC_IPV4"] } },
+    "publicImageDigest": { "value": "REPLACE_WITH_VERIFIED_64_CHARACTER_SHA256_WITHOUT_PREFIX" },
+    "adminImageDigest": { "value": "REPLACE_WITH_VERIFIED_64_CHARACTER_SHA256_WITHOUT_PREFIX" },
+    "supabaseUrl": { "value": "https://REPLACE.supabase.co" },
+    "supabaseAnonKey": { "value": "REPLACE_PRIVATELY" },
+    "supabaseServiceRoleKey": { "value": "REPLACE_PRIVATELY" },
+    "adminAllowedUserIds": { "value": "REPLACE_WITH_TWO_CONFIRMED_UUIDS_PRIVATELY" },
+    "aiResourceGroup": { "value": "REPLACE_WITH_APPROVED_EXISTING_GROUP" },
+    "aiAccountName": { "value": "REPLACE_WITH_APPROVED_EXISTING_ACCOUNT" },
+    "aiEndpoint": { "value": "https://REPLACE.openai.azure.com/" },
+    "budgetContactEmail": { "value": "REPLACE_WITH_APPROVED_ALERT_RECIPIENT" },
+    "monthlyBudgetInBillingCurrency": { "value": 10 }
+  }
+}

@@ -1,4 +1,6 @@
 import { access, readFile } from "node:fs/promises";
+import { execFileSync } from "node:child_process";
+import path from "node:path";
 
 for (const file of [
   ".next/standalone/server.js",
@@ -12,3 +14,6 @@ if (Object.keys(manifest).some((route) => /^\/(?:admin(?:\/|$)|api\/(?:admin|mod
   throw new Error("Public standalone build contains an administration route.");
 }
 console.log("Independent public/admin standalone entrypoints and public route boundary verified.");
+execFileSync(process.execPath, [
+  path.resolve("scripts/photos/smoke.mjs"), path.resolve("tests/fixtures/photos/synthetic.heic"),
+], { cwd: path.resolve(".next/standalone"), stdio: "inherit", timeout: 45_000 });

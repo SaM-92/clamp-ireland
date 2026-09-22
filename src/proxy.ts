@@ -11,5 +11,6 @@ export function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: "/:path*",
+  // This route streams its own bounded body; proxy cloning otherwise truncates it at 10 MB.
+  matcher: "/((?!api/reports(?:/|$)).*)",
 };

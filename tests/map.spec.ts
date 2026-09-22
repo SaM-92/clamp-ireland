@@ -102,8 +102,8 @@ test("city navigation, geolocation, and sign-in are available without a blank sc
   await page.getByRole("link", { name: "Sign in", exact: true }).click();
   await expect(page.getByLabel("Email address")).toBeVisible();
   await expect(page.getByLabel("Password", { exact: true })).toBeVisible();
-  await page.getByRole("button", { name: "Create account", exact: true }).first().click();
-  await expect(page.locator('input[autocomplete="new-password"]')).toBeVisible();
+  await expect(page.getByRole("button", { name: "Create account", exact: true })).toHaveCount(0);
+  await expect(page.getByText("Registration is closed. This is an invitation-only test deployment.")).toBeVisible();
 });
 
 test("public API does not accept unauthenticated preview writes", async ({ request }) => {

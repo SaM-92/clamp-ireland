@@ -2,10 +2,10 @@ import "server-only";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 import { ContentPolicyError, POLICY_UNAVAILABLE_MESSAGE } from "../policy";
 
-export async function consumeContentPolicyAttempt(userId: string): Promise<void> {
+export async function consumeContentPolicyAttempt(userId: string, signal?: AbortSignal): Promise<void> {
   let allowed: unknown;
   try {
-    const { data, error } = await createServiceRoleClient().rpc("consume_content_policy_attempt", { p_user_id: userId });
+    const { data, error } = await createServiceRoleClient(signal).rpc("consume_content_policy_attempt", { p_user_id: userId });
     if (error || typeof data !== "boolean") throw new Error("Policy capacity unavailable");
     allowed = data;
   } catch {

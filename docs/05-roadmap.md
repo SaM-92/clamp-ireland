@@ -1,4 +1,4 @@
-# Roadmap / Phased Backlog (v7 — release preparation and Azure content checks)
+# Roadmap / Phased Backlog (v8 — private deployment preparation and bounded photos)
 
 Depends on: 00-product-plan.md, 01-architecture.md, 02-data-model.md,
 03-scoring-algorithm.md, 04-legal-considerations.md.
@@ -26,8 +26,10 @@ only in chat history.
       against a real project yet
 - [ ] PWA plugin wired in (manifest.json placeholder exists, no icons/SW yet)
 - [x] Azure architecture consultation recorded in handoff 13
-- [ ] Owner approves the hosting/data architecture and deployment
-- [ ] Azure Blob storage adapter and infrastructure, after approval
+- [x] Owner approved a development-only deployment direction and photo limits
+- [x] Azure Blob adapter, image normalization and initial infrastructure templates
+- [ ] Revised all-endpoint IP-isolated backend/connectivity design: hosted Supabase
+      HTTPS APIs cannot meet the newly required IP restriction; deployment is blocked
 
 ## Phase 1 — Core map + auth (MVP walking skeleton)
 - [x] Email/password sign-in and one-time confirmation flow; optional Google
@@ -50,7 +52,11 @@ only in chat history.
       against the graceful "not configured" fallback so far)
 
 ## Phase 2 — Evidence & scoring
-- [x] Image upload flow (Supabase Storage, private `report-images` bucket)
+- [x] Private Azure Blob upload/signing; JPEG/PNG/WebP/HEIC/HEIF up to
+      50 MiB / 64 MP, metadata removal and at most 3 MiB processed WebP
+- [x] Worker/body/time/concurrency bounds, explicit rollback cleanup and
+      original HEIC fixtures; independently packaged public/admin runtimes
+- [ ] Automatic orphan reconciliation, image erasure workflow and retention review
 - [x] **Human-in-the-loop text and image review queue** — every report
       starts `moderation_status = 'pending'`; admin approves/rejects via
       `src/modules/moderation`, editing public text and confirming review
@@ -141,7 +147,11 @@ only in chat history.
 - [x] Classifier decisions use `approve`/`blocked` and fixed explanations;
       v2 summaries enforce 20 words/160 characters, with forward migration
       `0007_concise_area_summaries.sql` prepared but not applied
-- [ ] Configure release/production environments, reviewer protection and Azure OIDC
+- [x] Separate development/production release selection and environment-aware records
+- [x] Default closed registration, exact IP-rule promotion checks and hard
+      deployment hold until all backend endpoints satisfy IP isolation
+- [ ] Configure release/development/production environments, reviewer protection,
+      Azure OIDC and an approved-network self-hosted deployment runner
 - [ ] Provision/approve hosting, backend identities, private storage and domains
 - [ ] Apply reviewed migrations after owner approval
 - [ ] First actual Azure deployment and post-deployment smoke
@@ -161,7 +171,9 @@ Azure architecture recommendation (not deployment approval). The app remains
 a prototype: these features do not complete the Phase 2/3 launch safeguards.
 Handoff 14 supersedes earlier same-site admin and admin-preview instructions.
 Handoffs 15-17 cover release automation, content-policy enforcement and the
-live synthetic Azure demo. Production deployment remains explicitly on hold.
+live synthetic Azure demo. Handoff 18 supersedes the original Supabase Storage
+and unrestricted-network deployment assumptions. All cloud deployment is
+blocked pending the required all-endpoint IP isolation.
 
 ## Explicitly out of scope for MVP (revisit later if community grows)
 - Native mobile apps

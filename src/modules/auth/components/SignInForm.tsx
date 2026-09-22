@@ -62,10 +62,10 @@ export function SignInForm() {
 
   return (
     <>
-      <div className="auth-tabs" role="group" aria-label="Account action">
+      {env.NEXT_PUBLIC_REGISTRATION_ENABLED ? <div className="auth-tabs" role="group" aria-label="Account action">
         <button aria-pressed={mode === "signin"} disabled={busy} onClick={() => { setMode("signin"); setError(null); }}>Sign in</button>
         <button aria-pressed={mode === "signup"} disabled={busy} onClick={() => { setMode("signup"); setError(null); }}>Create account</button>
-      </div>
+      </div> : <p className="field-hint">Registration is closed. This is an invitation-only test deployment.</p>}
       <form onSubmit={handleSubmit} className="auth-form">
         <label className="field">Email address
           <input type="email" required autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="you@example.com" />

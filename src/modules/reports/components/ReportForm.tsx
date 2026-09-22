@@ -7,6 +7,7 @@ import { Icon } from "@/lib/components/Icon";
 import type { MapFocus } from "@/modules/map/lib/mapStyle";
 import Link from "next/link";
 import { validateContent } from "@/modules/content-policy/policy";
+import { PHOTO_ACCEPT, PHOTO_HINT, validatePhoto } from "@/modules/photos/policy";
 
 export interface ReportFormValues {
   reporterType: ReporterType;
@@ -65,6 +66,7 @@ export function ReportForm({ onSubmit, onCancel, preview = false }: ReportFormPr
     setError(null);
     try {
       const checkedDescription = validateContent("report_note", description);
+      if (image) validatePhoto(image);
       await onSubmit({ reporterType, description: checkedDescription, incidentDate, image });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong.");
@@ -112,10 +114,22 @@ export function ReportForm({ onSubmit, onCancel, preview = false }: ReportFormPr
         Add a photo <span className="field-hint">Optional</span>
         <input
           type="file"
-          accept="image/jpeg,image/png,image/webp"
-          onChange={(e) => setImage(e.target.files?.[0] ?? null)}
+          accept={PHOTO_ACCEPT}
+          onChange={(e) => {
+            const selected = e.target.files?.[0] ?? null;
+            try {
+              if (selected) validatePhoto(selected);
+              setImage(selected);
+              setError(null);
+            } catch (cause) {
+              setImage(null);
+              e.target.value = "";
+              setError(cause instanceof Error ? cause.message : "Choose a supported photo.");
+            }
+          }}
         />
-        <span className="field-hint">{preview ? "Preview only. Photos are not uploaded or stored." : "Photos stay private until a moderator approves them. Avoid faces and number plates."}</span>
+        <span className="field-hint">{PHOTO_HINT}</span>
+        <span className="field-hint">{preview ? "Preview only. Photos are not uploaded or stored." : "Photos remain private evidence for moderators, even after a report is approved. Avoid faces and number plates."}</span>
       </label>
       {error && <p className="form-error" role="alert">{error}</p>}
       <div className="dialog-actions">

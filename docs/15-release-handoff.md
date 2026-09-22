@@ -1,5 +1,13 @@
 # Release foundations: preparation only
 
+**Current override:** handoff 18 and `.azure/deployment-plan.md` require
+all-endpoint IP isolation. Actual deployment is hard-blocked by
+`scripts/release/network-policy.mjs`; the earlier setup steps below cannot
+override that hold. The workflow now defaults to `environment=development`,
+uses `release-development` for its build configuration, and reserves a
+protected approved-network self-hosted runner for deployment. Production retains
+its separate environment, opt-in and reviewer safeguards.
+
 No release/deployment workflow was dispatched, image published, Azure application deployed, role
 changed, secret written or migration applied as part of this preparation.
 The existing public and two-account private-admin applications remain separate.
@@ -16,6 +24,7 @@ dependencies are needed. The root package scripts should map as follows:
 | `test:sql` | `node scripts/ci/run.mjs sql` | In-memory PGlite SQL policies; no live database/migrations |
 | `test:smoke` | `node scripts/ci/run.mjs smoke` | Already-built production apps on isolated ports 3015/3016 |
 | `test:release` | `node --test scripts/release/*.test.mjs` | Release/tag, environment, network, smoke and deployment failure contracts |
+| `test:infra` | Bicep compilation plus `scripts/infra/*.test.mjs` | Secure parameters, bounded resources and deny-by-default network contracts; no provisioning |
 
 The original `test:e2e` development workflow is unchanged. It can still conflict
 with the ordinary admin development server because of its shared `.next/dev`
@@ -119,6 +128,10 @@ provisioned per application; they are never Docker build inputs. The default
 map provider remains unchanged, Google authentication is not enabled by this
 pipeline, and optional client features needing other build-time public
 settings require an explicit later packaging change.
+The current pipeline also compiles `REGISTRATION_ENABLED=false` into both images.
+Local container smoke includes a real 64-MP HEIC decode under the public app's
+1-vCPU/2-GiB limit and authenticated synthetic 50-MiB HTTP boundary checks.
+Only synthetic quota denial is exercised; no model or storage write is made.
 
 The Node base image follows the Node 24 patch line rather than a pinned base
 digest. Therefore rebuilding one commit can produce a new image digest.

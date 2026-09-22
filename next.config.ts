@@ -8,6 +8,18 @@ const { buildReleaseEnvironment }: typeof import("./scripts/release/metadata.mjs
 
 const nextConfig: NextConfig = {
   output: "standalone",
+  serverExternalPackages: ["sharp", "heic-decode"],
+  outputFileTracingIncludes: {
+    "/api/reports": [
+      "./src/modules/photos/server/normalize-worker.mjs",
+      "./node_modules/heic-decode/**/*",
+      "./node_modules/libheif-js/**/*",
+      "./node_modules/sharp/**/*",
+      "./node_modules/@img/**/*",
+      "./node_modules/detect-libc/**/*",
+      "./node_modules/semver/**/*",
+    ],
+  },
   env: buildReleaseEnvironment(),
 };
 

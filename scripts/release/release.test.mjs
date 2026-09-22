@@ -7,11 +7,20 @@ import { validateRelease, buildReleaseEnvironment } from "./metadata.mjs";
 import { syntheticEnvironment, disabledAiEnvironment } from "../ci/environment.mjs";
 import { smokeApp, smokeOrigin } from "./smoke.mjs";
 import { assertExistingTarget, assertProtectedEnvironment, deploy, deploymentSettings, imageReference } from "./deployment.mjs";
+import { requireNetworkIsolationReady } from "./network-policy.mjs";
 
 const sha = "a".repeat(40);
 const digest = `sha256:${"b".repeat(64)}`;
 const version = "1.2.3";
+test("cloud deployment remains blocked until every backend meets the IP-isolation requirement", async () => {
+  assert.throws(requireNetworkIsolationReady, /all-endpoint IP isolation is incomplete/);
+  const blocked = await deploy(settings);
+  assert.equal(blocked.record.outcome, "failure");
+  assert.equal(blocked.record.apps.public.update, "not-started");
+  assert.equal(blocked.record.apps.admin.update, "not-started");
+});
 const settings = {
+  APPROVED_CLIENT_IPV4S: '["203.0.113.10"]',
   ENABLE_PRODUCTION_DEPLOY: "true", GITHUB_REF: "refs/heads/master",
   GITHUB_REPOSITORY: "owner/repository", GITHUB_RUN_ID: "123", GITHUB_RUN_ATTEMPT: "2",
   RELEASE_VERSION: version, RELEASE_SHA: sha,
@@ -26,6 +35,7 @@ const target = (image) => ({ properties: {
   configuration: { activeRevisionsMode: "Single", ingress: {
     external: true, targetPort: 3000, allowInsecure: false,
     fqdn: "public.fixture.invalid", customDomains: [{ name: "admin.fixture.invalid" }],
+    ipSecurityRestrictions: [{ name: "synthetic-client", action: "Allow", ipAddressRange: "203.0.113.10/32" }],
   } },
   template: { containers: [{ name: "fixture", image }] },
 } });
@@ -137,6 +147,7 @@ test("smoke uses only bounded GETs, exact metadata and no private admin data", a
   assert.deepEqual(await smokeApp({ app: "public", origin: settings.PUBLIC_SITE_ORIGIN, version, sha, fetchImpl }), {
     outcome: "passed", attempts: 1,
   });
+
   assert.deepEqual(paths, [
     "/api/health", "/admin", "/api/admin/overview", "/api/moderation/reports",
     "/dev/ai-demo", "/api/dev/ai-demo",
@@ -148,6 +159,38 @@ test("smoke uses only bounded GETs, exact metadata and no private admin data", a
   }), /failed after 2/);
   assert.equal(calls, 2);
   await assert.rejects(smokeApp({ app: "public", origin: settings.PUBLIC_SITE_ORIGIN, version, sha, attempts: 13 }));
+});
+
+test("development promotion has an independent opt-in and cannot cross production target tags", async () => {
+  const development = { ...settings, DEPLOY_ENVIRONMENT: "development", ENABLE_DEVELOPMENT_DEPLOY: "true", ENABLE_PRODUCTION_DEPLOY: "" };
+  assert.equal(deploymentSettings(development).environment, "development");
+  assert.throws(() => deploymentSettings({ ...development, ENABLE_DEVELOPMENT_DEPLOY: "" }));
+  assert.throws(() => deploymentSettings({ ...development, DEPLOY_ENVIRONMENT: "production" }));
+  assert.throws(() => deploymentSettings({ ...settings, DEPLOY_ENVIRONMENT: "other" }));
+  const tagged = { ...target(""), tags: { environment: "development", workload: "clamp-ireland" } };
+  assert.equal(assertExistingTarget(tagged, settings.PUBLIC_SITE_ORIGIN, "development"), "fixture");
+  assert.throws(() => assertExistingTarget(target(""), settings.PUBLIC_SITE_ORIGIN, "development"));
+  assert.throws(() => assertExistingTarget(tagged, settings.PUBLIC_SITE_ORIGIN, "production"));
+  const denied = await deploy(development, () => target(""));
+  assert.equal(denied.record.environment, "development");
+  assert.equal(denied.record.outcome, "failure");
+  assert.equal(denied.record.apps.public.update, "not-started");
+});
+
+test("promotion rejects missing, widened, duplicate or different IP allowlists before changing resources", async () => {
+  for (const value of ["", "[]", '["0.0.0.0/0"]', '["203.0.113.10","203.0.113.10"]', '["203.0.113.10/32"]']) {
+    assert.throws(() => deploymentSettings({ ...settings, APPROVED_CLIENT_IPV4S: value }));
+  }
+  for (const restrictions of [[], [{ action: "Allow", ipAddressRange: "0.0.0.0/0" }],
+    [{ action: "Deny", ipAddressRange: "203.0.113.10/32" }],
+    [{ action: "Allow", ipAddressRange: "203.0.113.11/32" }]]) {
+    const candidate = target("");
+    candidate.properties.configuration.ingress.ipSecurityRestrictions = restrictions;
+    assert.throws(() => assertExistingTarget(candidate, settings.PUBLIC_SITE_ORIGIN, "production", ["203.0.113.10/32"]));
+    const result = await deploy(settings, () => candidate);
+    assert.equal(result.record.apps.public.update, "not-started");
+    assert.equal(result.record.apps.admin.update, "not-started");
+  }
 });
 
 test("deployment preflights both existing targets, updates digests only, records success without identifiers", async () => {

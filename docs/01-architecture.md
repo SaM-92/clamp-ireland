@@ -2,6 +2,12 @@
 
 Depends on: `00-product-plan.md` (decisions locked in there).
 
+**Historical baseline:** the Vercel/Supabase Storage and zero-cost estimates below
+are not the current deployment design. Photo processing now targets private Azure
+Blob, and the proposed Container Apps/Supabase hybrid is blocked by the owner's
+all-endpoint IP-isolation requirement. See `18-private-deployment-and-photos.md`
+and `.azure/deployment-plan.md` before provisioning anything.
+
 ## 1. Why not plain Google Maps / plain public OSM
 - Google Maps API: free tier exists but requires a billing account + card on
   file, and costs scale with usage — user explicitly wants to avoid this.
@@ -49,8 +55,9 @@ Supabase (Postgres + PostGIS, Auth, Storage)
   "find/cluster all pins within X meters" — instead of naive lat/lng math.
 - **Row Level Security (RLS)** in Postgres as the primary authorization
   mechanism (not just app-level checks) — safer default, and free.
-- Image resizing, EXIF removal, rate limits and Turnstile remain planned;
-  do not infer that the current upload endpoint provides these safeguards.
+- Image resizing, metadata removal and bounded authenticated report admission
+  are implemented. Turnstile and broader public-launch abuse protection remain
+  planned; see handoff 18 for precise limits and remaining safeguards.
 - Risk score is **computed and cached** on the location row (not recalculated
   per page view). Approval/rejection recomputes synchronously; scheduled
   refresh for time decay remains backlog.

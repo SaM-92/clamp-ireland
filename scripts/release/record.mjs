@@ -16,6 +16,8 @@ function smokeResult(value) {
 }
 
 export function createAttemptRecord(source, deploy = null) {
+  const environment = ["production", "development"].includes(source.DEPLOY_ENVIRONMENT ?? "production")
+    ? source.DEPLOY_ENVIRONMENT ?? "production" : null;
   const version = typeof source.RELEASE_VERSION === "string" && source.RELEASE_VERSION.trim() === source.RELEASE_VERSION &&
     versionPattern.test(source.RELEASE_VERSION) ? source.RELEASE_VERSION : null;
   const sha = validSha(source.RELEASE_SHA);
@@ -28,7 +30,8 @@ export function createAttemptRecord(source, deploy = null) {
     package: jobResult(source.PACKAGE_RESULT), deploy: jobResult(source.DEPLOY_RESULT),
   };
   const deploymentRequested = source.DEPLOY_REQUESTED === "true";
-  const matched = Boolean(version && sha && runId && attempt && deploy?.version === version && deploy.sha === sha &&
+  const matched = Boolean(environment && (deploy?.environment ?? "production") === environment &&
+    version && sha && runId && attempt && deploy?.version === version && deploy.sha === sha &&
     deploy.runId === runId && deploy.attempt === attempt &&
     ["public", "admin"].every((app) => images[app] && deploy.apps?.[app]?.digest === images[app]));
   const updates = Object.fromEntries(["public", "admin"].map((app) => [app,
@@ -36,7 +39,7 @@ export function createAttemptRecord(source, deploy = null) {
   const deploymentSmoke = Object.fromEntries(["public", "admin"].map((app) => [app,
     matched ? smokeResult(deploy.apps[app].smoke) : { outcome: "unknown" }]));
   const containerSmoke = jobResult(source.CONTAINER_SMOKE_RESULT);
-  const packaged = Boolean(tag && sha && images.public && images.admin && containerSmoke === "success" &&
+  const packaged = Boolean(environment && tag && sha && images.public && images.admin && containerSmoke === "success" &&
     jobs.resolve === "success" && jobs.checks === "success" && jobs.package === "success");
   const deployed = matched && jobs.deploy === "success" && deploy.outcome === "success" &&
     ["public", "admin"].every((app) => updates[app] === "verified" && deploymentSmoke[app].outcome === "passed");
@@ -45,7 +48,7 @@ export function createAttemptRecord(source, deploy = null) {
     (deploymentRequested && jobs.deploy === "success" && !deployed) ||
     (jobs.package !== "success" && Boolean(images.public || images.admin));
   return {
-    schemaVersion: 2, version, sha, tag,
+    schemaVersion: 3, environment, version, sha, tag,
     dispatchSha: validSha(source.GITHUB_SHA),
     runId, attempt, finishedAt: new Date().toISOString(),
     outcome: success ? "success" : partial ? "partial" : "failure",

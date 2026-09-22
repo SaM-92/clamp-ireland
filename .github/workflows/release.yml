@@ -8,16 +8,24 @@ on:
         required: true
         type: string
       deploy:
-        description: Also request protected production deployment (requires repository opt-in)
+        description: Also request deployment to the protected selected environment
         required: true
         default: false
         type: boolean
+      environment:
+        description: Target and build configuration; development is not a public production launch
+        required: true
+        default: development
+        type: choice
+        options:
+          - development
+          - production
 
 permissions:
   contents: read
 
 concurrency:
-  group: production-release
+  group: versioned-release
   cancel-in-progress: false
 
 jobs:
@@ -44,6 +52,9 @@ jobs:
         env:
           RELEASE_TAG: ${{ inputs.tag }}
         run: node scripts/release/resolve.mjs "$RELEASE_TAG"
+      - name: Enforce the all-endpoint network-isolation hold
+        if: ${{ inputs.deploy }}
+        run: node --input-type=module -e "import { requireNetworkIsolationReady } from './scripts/release/network-policy.mjs'; requireNetworkIsolationReady();"
 
   checks:
     needs: resolve
@@ -55,7 +66,7 @@ jobs:
     needs: [resolve, checks]
     runs-on: ubuntu-24.04
     timeout-minutes: 30
-    environment: release
+    environment: ${{ inputs.environment == 'development' && 'release-development' || 'release' }}
     permissions:
       contents: write
       packages: write
@@ -109,6 +120,7 @@ jobs:
           build-args: |
             RELEASE_SHA=${{ needs.resolve.outputs.sha }}
             BUILD_PROFILE=production
+            REGISTRATION_ENABLED=false
           secrets: |
             public_supabase_url=${{ secrets.PUBLIC_SUPABASE_URL }}
             public_supabase_anon_key=${{ secrets.PUBLIC_SUPABASE_ANON_KEY }}
@@ -131,6 +143,7 @@ jobs:
           build-args: |
             RELEASE_SHA=${{ needs.resolve.outputs.sha }}
             BUILD_PROFILE=production
+            REGISTRATION_ENABLED=false
           secrets: |
             public_supabase_url=${{ secrets.PUBLIC_SUPABASE_URL }}
             public_supabase_anon_key=${{ secrets.PUBLIC_SUPABASE_ANON_KEY }}
@@ -156,9 +169,9 @@ jobs:
   deploy:
     if: ${{ inputs.deploy }}
     needs: [resolve, package]
-    runs-on: ubuntu-24.04
+    runs-on: [self-hosted, Linux, clamp-private]
     timeout-minutes: 30
-    environment: production
+    environment: ${{ inputs.environment }}
     permissions:
       contents: read
       id-token: write
@@ -166,6 +179,9 @@ jobs:
       outcome: ${{ steps.deploy.outputs.outcome }}
     env:
       ENABLE_PRODUCTION_DEPLOY: ${{ vars.ENABLE_PRODUCTION_DEPLOY }}
+      ENABLE_DEVELOPMENT_DEPLOY: ${{ vars.ENABLE_DEVELOPMENT_DEPLOY }}
+      DEPLOY_ENVIRONMENT: ${{ inputs.environment }}
+      APPROVED_CLIENT_IPV4S: ${{ secrets.APPROVED_CLIENT_IPV4S }}
       AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
       AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
       AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
@@ -240,6 +256,7 @@ jobs:
           PACKAGE_RESULT: ${{ needs.package.result }}
           DEPLOY_RESULT: ${{ needs.deploy.result }}
           DEPLOY_REQUESTED: ${{ inputs.deploy }}
+          DEPLOY_ENVIRONMENT: ${{ inputs.environment }}
           CONTAINER_SMOKE_RESULT: ${{ needs.package.outputs.smoke }}
         run: node scripts/release/record.mjs
       - name: Attach durable deployment-attempt record to the published release

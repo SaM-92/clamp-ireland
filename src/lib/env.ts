@@ -13,6 +13,7 @@ export const env = {
   NEXT_PUBLIC_DONATION_URL:
     process.env.NEXT_PUBLIC_DONATION_URL ?? "",
   NEXT_PUBLIC_GOOGLE_AUTH_ENABLED: process.env.NEXT_PUBLIC_GOOGLE_AUTH_ENABLED === "true",
+  NEXT_PUBLIC_REGISTRATION_ENABLED: process.env.NEXT_PUBLIC_REGISTRATION_ENABLED === "true",
   SITE_URL: process.env.SITE_URL ?? "",
   ALLOW_INDEXING: process.env.ALLOW_INDEXING === "true",
   VERCEL_ENV: process.env.VERCEL_ENV,
@@ -25,6 +26,8 @@ export const env = {
   AZURE_OPENAI_AUTH_MODE: process.env.AZURE_OPENAI_AUTH_MODE ?? "entra",
   AZURE_OPENAI_API_KEY: process.env.AZURE_OPENAI_API_KEY ?? "",
   AZURE_CLIENT_ID: process.env.AZURE_CLIENT_ID ?? "",
+  AZURE_STORAGE_ACCOUNT_NAME: process.env.AZURE_STORAGE_ACCOUNT_NAME ?? "",
+  AZURE_STORAGE_AUTH_MODE: process.env.AZURE_STORAGE_AUTH_MODE ?? "managed-identity",
   ENABLE_LOCAL_AI_DEMO: process.env.ENABLE_LOCAL_AI_DEMO === "true",
   NODE_ENV: process.env.NODE_ENV,
   ADMIN_ALLOWED_USER_IDS: process.env.ADMIN_ALLOWED_USER_IDS ?? "",

@@ -13,6 +13,16 @@ export interface CreateReportInput {
   imagePath: string | null;
 }
 
+export class ReportInsertError extends Error {
+  readonly rolledBack: boolean;
+  constructor(code: string | undefined) {
+    super("Report persistence could not be confirmed.");
+    this.name = "ReportInsertError";
+    // Only explicit SQL rollback classes permit deletion; transport errors may follow a commit.
+    this.rolledBack = typeof code === "string" && /^(22|23|40|42)[0-9A-Z]{3}$/.test(code);
+  }
+}
+
 /**
  * The heuristic is only an editing aid, not an anonymization gate.
  * All text and photos remain pending until a human approves publication.
@@ -39,9 +49,10 @@ export async function createReport(input: CreateReportInput): Promise<SubmittedR
       moderation_status: "pending",
     })
     .select()
+    .abortSignal(AbortSignal.timeout(15_000))
     .single();
 
-  if (error) throw error;
+  if (error) throw new ReportInsertError(error.code);
 
   return data as SubmittedReport;
 }

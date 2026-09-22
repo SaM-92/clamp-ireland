@@ -34,6 +34,7 @@ jobs:
       - run: npm ci --no-audit --no-fund
       - run: npm run lint
       - run: node --test scripts/release/*.test.mjs
+      - run: npm run test:infra
       - run: node scripts/ci/run.mjs unit
       - run: node scripts/ci/run.mjs sql
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4

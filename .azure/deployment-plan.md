@@ -1,4 +1,140 @@
-# Deployment preparation status
+# Deployment plan
+
+Status: **Deployment blocked: all-endpoint IP isolation is now mandatory**.
+
+## Network-isolation requirement (supersedes the earlier network design)
+
+The owner requires restriction to their approved public IPs for **everything**:
+both websites, direct Blob access, and direct Supabase access. Authentication,
+closed registration and private containers alone do not satisfy this requirement.
+The owner clarified that the current IP must not be saved now. The temporary
+IP snapshot was removed. Supply the approved host IPs privately at deployment
+time, and apply the allowlist as part of provisioning before any application or
+backend becomes accessible. Never deploy openly and add restrictions afterward.
+
+**Do not deploy the previously proposed Supabase Free hybrid architecture.**
+Supabase documents that its network restrictions cover Postgres and its pooler,
+not HTTPS Auth, PostgREST or Storage endpoints:
+https://supabase.com/docs/guides/platform/network-restrictions .
+Putting an allowlist only on the websites would leave a backend bypass.
+A private-capable backend/network design and revised cost assessment are required.
+Do not change the network policy of the existing shared AI resource, which serves
+another project, as an implicit workaround.
+
+The infrastructure below is preparation only. App ingress and Blob firewall rules
+must fail closed, but app-to-Blob private connectivity and a network-isolated auth/
+database backend are not implemented. Release deployment is hard-blocked in code.
+The final access checks must originate both inside and outside the allowlist;
+ordinary GitHub-hosted runners must not be temporarily whitelisted for promotion.
+Deployment/smoke will require an approved-network runner or equivalent private path.
+No Azure resources, network rules, roles or live database settings have been changed.
+
+## Current deployment scope
+
+Before the stricter network requirement, the owner approved proceeding after the Visual Studio credit restriction was
+explained. This deployment is therefore a non-production version for the owner
+and cofounder, not a public community launch. Public registration stays closed.
+Use the privately confirmed subscription, North Europe, resource group
+`rg-clamp-ireland-dev`, Supabase Free outside Azure, and an incremental
+EUR 10/month low-traffic target (not a guaranteed spending cap).
+The approved photo policy is ordinary JPEG/PNG/WebP/HEIC/HEIF up to 50 MiB and
+64 megapixels, normalized to at most 3 MiB; RAW/DNG is excluded.
+
+- [x] Confirm target subscription, region, resource-group name and budget.
+- [x] Compare retaining PostgreSQL/PostGIS plus managed auth with an all-Azure
+  alternative; document services that cannot live in an Azure resource group.
+- [x] Define accepted photo formats, source byte/pixel limits, normalization,
+  private Blob access and storage limits.
+- [x] Reuse the existing AI resource for non-production testing only.
+- [x] Finalize the implementation/provisioning plan and get scoped approval.
+- [ ] Implement Blob integration, upload safeguards and infrastructure.
+- [ ] Configure backend, authentication and the two approved admin identities.
+- [ ] Run azure-validate, then azure-deploy for the approved targets.
+- [ ] Verify deployed workflows and publish versioned deployment records.
+
+### Preparation completed before the network-design hold
+
+- Private Blob adapter, managed-identity authentication, ten-minute read-only
+  moderator URLs and safe cleanup for definite insert rollbacks are implemented.
+- Real JPEG/PNG/WebP and HEIC processing supports the approved source bounds,
+  strips metadata and caps stored WebP at 3 MiB. RAW and animations are rejected.
+- Public/admin builds pass independently. The admin signer does not import the
+  public upload worker. A packaged 64-MP HEIC decode succeeded in a local,
+  network-isolated 1-vCPU/2-GiB public container with about 1283 MiB peak decoder
+  RSS. Both container runtimes passed their boundary smoke.
+- Actual standalone HTTP accepted 50 MiB through input validation and reached a
+  synthetic quota denial; one byte over the file limit was rejected. No inference
+  or real storage write was performed. The upload route avoids Next proxy's
+  default 10-MB cloned-body truncation.
+- Bicep compilation and resource contracts pass locally. The updated templates
+  require non-empty secure IP inputs, app Allow-only host rules and Blob default
+  Deny. Internal Blob connectivity remains unimplemented, not silently opened.
+- The release workflow separates development/production settings and records,
+  compares actual app rules with private approved IPs, and hard-blocks deployment.
+- Direct provider reads reported 0/50 regional environments and 0/250 storage
+  accounts. Microsoft.Quota was unregistered; compute capacity, complete policy
+  evaluation, real-parameter ARM validation and what-if are still outstanding.
+- See `docs/18-private-deployment-and-photos.md` for the implementation and the
+  remaining private-network/backend decisions. Backend setup was deferred by
+  the owner, and no real administrator identities or backend keys were supplied.
+
+No cloud resources, roles or live database settings have been changed by
+this planning update. Keep resource/account identifiers and credentials out
+of committed configuration.
+
+### Proposed lowest-change, low-cost architecture
+
+- New resource group `rg-clamp-ireland-dev`, region North Europe.
+- Two Container Apps on Consumption: minimum zero replicas, maximum one each.
+  Use public GHCR images without credentials baked in; avoid a paid registry,
+  dedicated compute, NAT gateways and private endpoints for this first version.
+- Private Standard StorageV2 Hot LRS Blob storage, using managed identity and
+  narrowly scoped, short-lived moderator access. Store processed images only.
+  The original unrestricted public endpoint design is superseded by the
+  all-endpoint IP-isolation requirement above.
+- Retain Supabase Free for PostgreSQL/PostGIS and Auth rather than porting to
+  MySQL. This is explicitly hybrid: Supabase is outside the Azure resource group.
+  Free limits include 500 MB database and 50,000 MAU, but pausing after one week
+  of inactivity and no automatic backups are material launch limitations.
+- Public email registration requires custom SMTP. Supabase's built-in sender
+  only delivers to project-team addresses and is not a production option.
+- Proposed photo policy: one image per report, ordinary JPEG/PNG/WebP/HEIC/HEIF
+  sources up to 50 MiB and 64 megapixels; validate decoded content, orient,
+  strip metadata and resize/recompress to at most 3 MiB before Blob persistence.
+  DNG/ProRAW originals are excluded initially; users can export them as JPEG.
+  These are application limits, not a claimed universal iPhone file maximum.
+- Reuse the existing AI deployment for testing; the only pre-existing shared
+  Azure service outside the new group. Reassess AI placement before production.
+- Owner approved a EUR 10/month low-traffic target. No automatic paid-tier upgrade.
+  Budget alerts are notifications, not a hard cap on consumption charges.
+
+### Public-production billing restriction
+
+Read-only ARM inspection identified the supplied subscription's offer as
+`MSDN_2014-09-01`, with its spending limit on. Microsoft documents the Visual
+Studio monthly-credit benefit as **development and testing only**, without
+a financially backed SLA. Obtain a production-eligible subscription before
+public launch; do not change its spending limit or relabel production as a demo.
+
+For scale: public retail pricing currently lists North Europe Hot LRS capacity
+at EUR 0.0189 per GB-month. About 1,000 processed 3-MiB images would therefore
+cost roughly EUR 0.06/month in capacity alone, excluding operations, transfer,
+retained versions and tax. Hosting, email and inference are separate charges;
+low-traffic estimates are not guaranteed bills. Container Apps grants are
+shared at subscription level, not multiplied by apps/resource groups.
+
+Apple documents approximately 75 MB for a 48-MP ProRAW image, not an absolute
+maximum. Ordinary phone uploads and RAW archival are different requirements.
+The fetched iPhone 18 specification page did not establish a file-size bound.
+
+Official sources checked:
+- https://supabase.com/pricing
+- https://supabase.com/docs/guides/auth/auth-smtp
+- https://azure.microsoft.com/en-us/pricing/member-offers/credit-for-visual-studio-subscribers/
+- https://prices.azure.com/api/retail/prices
+- https://support.apple.com/en-ie/119916
+
+## Previous preparation and readiness evidence
 
 Status: **Preparation verified; deployment blocked and on hold**.
 

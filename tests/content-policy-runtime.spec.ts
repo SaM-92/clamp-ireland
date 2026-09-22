@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 import { policyRuntime } from "./helpers/content-policy-runtime";
 import { POLICY_TEXT } from "../src/modules/content-policy/policy";
+import { PHOTO_LIMITS } from "../src/modules/photos/policy";
 
 const userId = "20000000-0000-4000-8000-000000000001";
 const locationId = "30000000-0000-4000-8000-000000000001";
@@ -12,6 +13,8 @@ function fixture() {
     writes: [] as Record<string, unknown>[], rpc: [] as { name: string; args: Record<string, unknown> }[],
     usernameWrites: [] as string[], profileFailure: false,
     usernameConflict: false,
+    insertError: null as string | null, deletes: 0, cleanupFailure: false,
+    aiWait: Promise.resolve(), onAi: () => {},
   };
   const client = {
     auth: { getUser: async (token: string) => ({
@@ -23,12 +26,12 @@ function fixture() {
     }) },
     from: (table: string) => {
       const query = {
-        select: () => query, eq: () => query,
+        select: () => query, eq: () => query, abortSignal: () => query,
         insert: (record: Record<string, unknown>) => { state.writes.push(record); return query; },
         single: async () => table === "profiles"
           ? { data: state.profileFailure ? null : { display_name: state.onboarding ? "Anonymous Person" : "river_walker",
             username_policy_checked_at: state.onboarding ? null : "2026-09-22", is_banned: state.banned }, error: null }
-          : { data: { id: locationId, ...state.writes.at(-1) }, error: null },
+          : { data: { id: locationId, ...state.writes.at(-1) }, error: state.insertError ? { code: state.insertError } : null },
       };
       return query;
     },
@@ -53,10 +56,19 @@ function fixture() {
     "@supabase/supabase-js": { createClient: () => client },
     "@/modules/ai/server/client": { requestStructuredOutput: async () => {
       state.aiCalls++;
+      state.onAi();
+      await state.aiWait;
       if (state.offline) throw new Error("PRIVATE provider body / access token");
       return state.decisions;
     } },
-    "@/modules/reports/server/imageStorage": { uploadReportImage: async () => { state.uploads++; return "private/image.png"; } },
+    "@/modules/reports/server/imageStorage": {
+      uploadReportImage: async () => { state.uploads++; return "private/image.png"; },
+      deleteReportImage: async () => {
+        state.deletes++;
+        if (state.cleanupFailure) throw new Error("PRIVATE storage diagnostics");
+      },
+    },
+    "@/modules/photos/server/normalize": { normalizePhoto: async () => new Uint8Array([1]) },
   });
   return { ...runtime, state,
     reports: runtime.load<typeof import("../src/app/api/reports/route")>("src/app/api/reports/route.ts"),
@@ -208,7 +220,7 @@ test("request byte and photo boundaries are enforced even when content length li
   expect(f.state.aiCalls).toBe(1);
   const oversized = new Request("http://localhost/api/reports", {
     method: "POST", headers: { Authorization: "Bearer confirmed", "Content-Length": "1" },
-    body: new Uint8Array(9 * 1024 * 1024 + 1),
+    body: new Uint8Array(PHOTO_LIMITS.sourceBytes + 1024 * 1024 + 1),
   });
   expect((await f.reports.POST(oversized)).status).toBe(400);
   expect(f.state.aiCalls).toBe(1);
@@ -222,12 +234,65 @@ test("request byte and photo boundaries are enforced even when content length li
       method: "POST", headers: { Authorization: "Bearer confirmed" }, body: form,
     }));
   }
-  expect((await photo(8 * 1024 * 1024)).status).toBe(200);
-  expect((await photo(8 * 1024 * 1024 + 1)).status).toBe(400);
+  expect((await photo(PHOTO_LIMITS.sourceBytes)).status).toBe(200);
+  expect((await photo(PHOTO_LIMITS.sourceBytes + 1)).status).toBe(413);
   expect((await photo(10, "text/plain")).status).toBe(400);
   expect(f.state.aiCalls).toBe(2);
   expect(f.state.uploads).toBe(1);
   expect(f.state.writes).toHaveLength(1);
+});
+
+test("failed inserts delete only definitely rolled-back evidence and expose cleanup failures safely", async () => {
+  const f = fixture();
+  f.state.insertError = "23514";
+  expect((await f.reports.POST(reportRequest())).status).toBe(503);
+  expect(f.state.deletes).toBe(1);
+  f.state.insertError = "08006";
+  expect((await f.reports.POST(reportRequest())).status).toBe(503);
+  expect(f.state.deletes).toBe(1);
+  expect(JSON.stringify(f.logs)).toContain("retained for reconciliation");
+  f.state.insertError = "23514";
+  f.state.cleanupFailure = true;
+  expect((await f.reports.POST(reportRequest())).status).toBe(503);
+  expect(f.state.deletes).toBe(2);
+  expect(JSON.stringify(f.logs)).toContain("cleanup failed");
+  expect(JSON.stringify(f.logs)).not.toContain("PRIVATE");
+});
+
+test("only one report body is admitted at a time and the gate releases after failure", async () => {
+  const f = fixture();
+  const entered = Promise.withResolvers<void>();
+  const resume = Promise.withResolvers<void>();
+  f.state.aiWait = resume.promise;
+  f.state.onAi = entered.resolve;
+  const first = f.reports.POST(reportRequest());
+  await entered.promise;
+  const second = await f.reports.POST(reportRequest());
+  expect(second.status).toBe(429);
+  expect(second.headers.get("retry-after")).toBe("10");
+  expect(f.state.aiCalls).toBe(1);
+  f.state.offline = true;
+  resume.resolve();
+  expect((await first).status).toBe(503);
+  f.state.offline = false;
+  expect((await f.reports.POST(reportRequest())).status).toBe(200);
+});
+
+test("duplicate images and empty files are rejected before quota and inference", async () => {
+  const f = fixture();
+  const original = reportRequest();
+  const body = await original.formData();
+  const headers = new Headers(original.headers);
+  headers.delete("content-type");
+  body.append("image", new File(["another"], "second.png", { type: "image/png" }));
+  const duplicate = await f.reports.POST(new Request(original.url, { method: "POST", headers, body }));
+  expect(duplicate.status).toBe(400);
+  expect(await duplicate.json()).toMatchObject({ code: "invalid_photo" });
+  body.set("image", new File([], "empty.jpg", { type: "image/jpeg" }));
+  const request = reportRequest();
+  expect((await f.reports.POST(new Request(request.url, { method: "POST", headers, body }))).status).toBe(413);
+  expect(f.state.rpc).toEqual([]);
+  expect(f.state.uploads).toBe(0);
 });
 
 test("missing profile schema and username conflicts are explicit without leaking storage details", async () => {

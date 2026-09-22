@@ -151,20 +151,3 @@ test("private signing failures are explicit and cannot be approved through the r
   await expect(Promise.resolve(repository.approveReport(row.id, "Reviewed note", "admin"))).rejects.toThrow("Storage unavailable");
   expect(updates).toBe(0);
 });
-
-test("image signer throws on storage failure and missing signed URL", async () => {
-  let result: { data: { signedUrl?: string } | null; error: Error | null } = { data: null, error: new Error("Signing failed") };
-  const storage = loadServer<typeof import("../src/modules/reports/server/imageStorage")>(
-    "src/modules/reports/server/imageStorage.ts", {
-      "@/lib/supabase/server": {
-        createServiceRoleClient: () => ({ storage: { from: () => ({ createSignedUrl: async () => result }) } }),
-      },
-    },
-  );
-  await expect(Promise.resolve(storage.getSignedImageUrl("private/file"))).rejects.toThrow("Signing failed");
-  result = { data: {}, error: null };
-  const missingUrl = Promise.resolve(storage.getSignedImageUrl("private/file"));
-  await expect(missingUrl).rejects.toThrow("did not return");
-  result = { data: { signedUrl: "https://example.test/private?token=test" }, error: null };
-  expect(await storage.getSignedImageUrl("private/file")).toBe(result.data?.signedUrl);
-});

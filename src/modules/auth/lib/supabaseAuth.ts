@@ -17,6 +17,7 @@ export async function signInWithEmail(email: string, password: string): Promise<
 }
 
 export async function signUpWithEmail(email: string, password: string): Promise<{ error: string | null }> {
+  if (!env.NEXT_PUBLIC_REGISTRATION_ENABLED) return { error: "Registration is closed. This is an invitation-only test deployment." };
   if (!isSupabaseConfigured) return { error: NOT_CONFIGURED_ERROR };
   const { error } = await createBrowserClient().auth.signUp({
     email, password,

@@ -18,7 +18,7 @@ export function policyRuntime(dependencies: Record<string, unknown> = {}, global
       compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, esModuleInterop: true, jsx: ts.JsxEmit.ReactJSX },
     }).outputText;
     runInNewContext(code, {
-      module: commonJs, exports: commonJs.exports, Request, Response, Headers, URL, Error, FormData, File, Blob, TextDecoder, TextEncoder, performance,
+      module: commonJs, exports: commonJs.exports, Request, Response, Headers, URL, Error, FormData, File, Blob, TextDecoder, TextEncoder, performance, AbortSignal, Uint8Array, Buffer,
       console: { error: (...args: unknown[]) => logs.push(args) },
       fetch: () => { throw new Error("Live network forbidden in content-policy tests"); },
       ...globals,
