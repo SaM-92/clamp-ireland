@@ -7,6 +7,7 @@ import { Icon } from "@/lib/components/Icon";
 import { AccountMenu } from "@/modules/auth/components/AccountMenu";
 import { seoPolicy } from "@/modules/seo/config";
 import { PRIVATE_ROBOTS } from "@/modules/seo/policy";
+import { TrafficTracker } from "@/modules/analytics/components/TrafficTracker";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -50,6 +51,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           </nav>
         </header>
         {children}
+        <TrafficTracker />
         <footer className="site-footer">
           <span>Built for the community. Not for profit.</span>
           <nav className="footer-links" aria-label="Useful links">

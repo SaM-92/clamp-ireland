@@ -16,20 +16,19 @@ export async function uploadReportImage(file: File, ownerPathPrefix: string): Pr
 }
 
 /**
- * Returns a time-limited signed URL for a stored image. Callers MUST only
- * do this for reports whose `moderation_status === 'published'` — the
- * bucket is private specifically so an unreviewed image (which may show
- * faces/plates) is never reachable before a human has redacted it. See
- * docs/00-product-plan.md, "human-in-the-loop image review".
+ * Returns private evidence for an authenticated administrator's review.
+ * Callers MUST enforce requireAdmin before signing unreviewed images.
+ * Never expose these bearer URLs through public report endpoints.
  */
 export async function getSignedImageUrl(
   path: string,
   expiresInSeconds = 3600
-): Promise<string | null> {
+): Promise<string> {
   const supabase = createServiceRoleClient();
   const { data, error } = await supabase.storage
     .from(BUCKET)
     .createSignedUrl(path, expiresInSeconds);
-  if (error) return null;
+  if (error) throw error;
+  if (!data?.signedUrl) throw new Error("Storage did not return a private image URL.");
   return data.signedUrl;
 }

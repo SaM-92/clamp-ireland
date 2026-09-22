@@ -1,0 +1,13 @@
+.panel { display: grid; gap: 16px; min-width: 0; padding: 20px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); overflow-wrap: anywhere; }
+.heading { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; }
+.heading h2 { font-size: 19px; font-weight: 650; }
+.hint { font-size: 14px; color: var(--muted); line-height: 1.7; }
+.totals { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin: 0; }
+.totals dt { color: var(--muted); font-size: 13px; }
+.totals dd { font-size: 28px; font-weight: 650; margin: 6px 0 0; font-variant-numeric: tabular-nums; }
+.tableRegion { overflow-x: auto; max-width: 100%; }
+.table { width: 100%; border-collapse: collapse; font-size: 13px; text-align: left; font-variant-numeric: tabular-nums; }
+.table caption { text-align: left; padding-bottom: 12px; color: var(--muted); }
+.table th, .table td { padding: 12px 6px; border-bottom: 1px solid var(--border); }
+.table th:not(:first-child), .table td:not(:first-child) { text-align: right; }
+.table td:first-child { white-space: nowrap; }

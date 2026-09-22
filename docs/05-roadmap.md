@@ -1,4 +1,4 @@
-# Roadmap / Phased Backlog (v4 — mobile streets, notes and zones)
+# Roadmap / Phased Backlog (v5 — admin, appeal guidance and discoverability)
 
 Depends on: 00-product-plan.md, 01-architecture.md, 02-data-model.md,
 03-scoring-algorithm.md, 04-legal-considerations.md.
@@ -13,6 +13,8 @@ only in chat history.
 - [x] `supabase/migrations/0001_init.sql` — full schema, RLS, RPC
 - [x] `0002_reviewed_public_notes.sql` — review gate, safe public notes view,
       legacy requeue, restricted role updates and location RPC execution
+- [x] `0003_aggregate_traffic.sql` — service-only UTC daily pageview counters;
+      opt-in collection, no visitor identity or raw event table
 - [x] Create GitHub repo under SaM-92 (`clamp-ireland`; initial scaffold pushed)
 - [ ] Supabase project actually created (dev) — migration has not been run
       against a real project yet
@@ -71,8 +73,8 @@ only in chat history.
 - [ ] Privacy Policy + Terms of Service pages published
 - [ ] Account deletion / right-to-erasure flow
 - [ ] Disclaimer banner on every location detail page
-- [ ] "How to appeal a clamp" info page linking to the official NTA
-      two-stage appeals process — see `04-legal-considerations.md` §1
+- [x] `/appeal`: official NTA-sourced two-stage appeal guidance, deadlines,
+      private evidence checklist, complaints distinction and Republic-only scope
 
 ## Phase 4 — Polish & community growth (not started)
 - [x] "Support this project" donation link (`src/modules/donations`) —
@@ -92,7 +94,16 @@ only in chat history.
 - [ ] Password reset flow for live email/password accounts
 - [ ] Installable PWA (manifest, icons, offline shell)
 - [ ] Share-a-location link (for warning friends before they park)
-- [ ] Basic analytics (privacy-respecting, e.g. Plausible free/self-host or none)
+- [x] `/admin`: protected overview and review workspace, read-only local
+      preview, explicit photo failures that block approval
+- [x] Optional first-party aggregate pageviews in admin, disabled by default;
+      privacy/consent and hosting-log review still required before activation
+- [x] Technical SEO/AEO: canonical domain validation, sitemap, crawler rules,
+      default noindex, alternate-host/private protections, server-rendered guide
+- [x] Hosted support payment options researched; Stripe Payment Link recommended
+- [ ] Real support checkout/account configured by the owner
+- [ ] Public domain/deployment, launch approval, Search Console and indexing opt-in
+- [ ] Admin account management, review audit history and queue pagination
 
 ## Naming
 Working name "ClampWatch" / "Clamp Transparency Signal" — repo is currently
@@ -102,8 +113,9 @@ public launch.
 ## Latest implementation handoff
 
 Read `06-ui-handoff.md` before changing map assets, the design system,
-preview gating, or account flows. The redesigned app is still a prototype:
-this UI work does not complete the Phase 2/3 launch safeguards.
+preview gating, or account flows. Handoffs 07-10 cover the admin dashboard,
+appeal guide, search eligibility and support-payment setup. The app remains
+a prototype: these features do not complete the Phase 2/3 launch safeguards.
 
 ## Explicitly out of scope for MVP (revisit later if community grows)
 - Native mobile apps

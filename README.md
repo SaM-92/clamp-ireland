@@ -43,6 +43,11 @@ The phone layout puts search and the map ahead of the report list and
 statistics. Touchscreen maps use two fingers to pan, allowing one-finger
 page scrolling. Forms and notes scroll within the available screen space.
 
+Open `/admin` for the dashboard (read-only browser-local preview without
+Supabase), or `/appeal` for the official-source Republic of Ireland appeal
+guide. The latter explains the two stages and deadlines; posting a community
+report is not an appeal.
+
 ## How it's organized
 Read these in order for full context (each depends on the ones before it):
 
@@ -61,6 +66,14 @@ Read these in order for full context (each depends on the ones before it):
   work, and keep it updated as you finish things.
 - [`docs/06-ui-handoff.md`](docs/06-ui-handoff.md) — design decisions,
   map-worker repair, local preview boundaries, and browser regression checks.
+- [`docs/07-admin-handoff.md`](docs/07-admin-handoff.md) — dashboard,
+  protected moderation/photo review and optional aggregate traffic.
+- [`docs/08-appeal-handoff.md`](docs/08-appeal-handoff.md) — NTA source,
+  deadline wording, scope and accessibility.
+- [`docs/09-search-handoff.md`](docs/09-search-handoff.md) — opt-in search
+  indexing, canonical domain, crawler controls and deployment checks.
+- [`docs/10-support-payments.md`](docs/10-support-payments.md) — Stripe
+  Payment Links recommendation, wallet support, fees and alternatives.
 
 Code is module-based under `src/modules/*`, one folder per domain concept
 (`scoring`, `locations`, `reports`, `moderation`, `map`, `auth`,
@@ -85,12 +98,14 @@ npm install
 2. Apply both migrations **in order**:
    [`0001_init.sql`](supabase/migrations/0001_init.sql), then
    [`0002_reviewed_public_notes.sql`](supabase/migrations/0002_reviewed_public_notes.sql).
+   Then apply [`0003_aggregate_traffic.sql`](supabase/migrations/0003_aggregate_traffic.sql)
+   for optional admin traffic counts; collection stays disabled until opted in.
    The second migration restricts public reads to reviewed notes, prevents
    self-assigned admin roles, and restricts location creation to the server.
    It intentionally requeues legacy published reports without review stamps
    and resets their location counts/scores; approve them again to rebuild
    the public signal. Run it once as a migration, not on every deployment.
-   Neither migration has been applied to a live project in this session.
+   These migrations have not been applied to a live project in this session.
    (Alternatively, if you have the
    [Supabase CLI](https://supabase.com/docs/guides/cli) linked to the
    project, `supabase db push` applies pending migrations.)
@@ -120,14 +135,24 @@ Fill in:
   [OpenFreeMap](https://openfreemap.org) Bright style. For a quieter basemap,
   set `https://tiles.openfreemap.org/styles/positron`. Any compatible
   MapLibre style URL can be configured (see `docs/01-architecture.md`).
-- `NEXT_PUBLIC_DONATION_URL` — your real Buy Me a Coffee / Ko-fi / GitHub
-  Sponsors link. Leave blank for a non-clickable "Support us soon" placeholder.
+- `NEXT_PUBLIC_DONATION_URL` — your real hosted support URL, such as a
+  Stripe Payment Link, Ko-fi or Buy Me a Coffee. Leave blank for a
+  non-clickable "Support us soon" placeholder. No payment account was created.
 - `NEXT_PUBLIC_GOOGLE_AUTH_ENABLED` — `true` only after enabling Google in
   Supabase Auth. Put the Google OAuth client ID/secret in **Supabase**, not in
   browser variables; register the callback URL Supabase provides with Google.
   This is a Google OAuth client, not a Gmail API integration.
 - `OPENAI_API_KEY` — reserved for future AI integration. The current text
   softener is heuristic-only; merely setting this key does not enable AI.
+- `SITE_URL` — the actual public HTTPS origin, without a path, query or
+  credentials. Leave blank locally; no guessed domain is emitted.
+- `ALLOW_INDEXING` — default `false`. Enable only after the public site is
+  ready. Development, preview deployments and private/admin routes remain
+  noindex. Google/ChatGPT crawl eligibility does not guarantee inclusion.
+- `ENABLE_TRAFFIC_ANALYTICS` — default `false`. After migration 0003 and
+  privacy/consent/hosting-log review, opt in to production-only aggregate
+  pageview counts. No application-stored visitor IDs, searches or report
+  content. These are approximate pageviews, not unique people.
 
 The app also runs, and `npm run build` succeeds, without any of the above
 set. Public map/stat reads use empty data; development has the local
@@ -140,7 +165,7 @@ npm run dev
 ```
 Open [http://localhost:3000](http://localhost:3000).
 
-### 5. Becoming an admin (to see the moderation queue)
+### 5. Becoming an admin
 A `profiles` row is created automatically for every new user (see the
 `on_auth_user_created` trigger in the migration). The admin gate
 (`src/modules/auth/lib/requireAdmin.ts`) checks that row's `is_admin` flag.
@@ -148,11 +173,23 @@ There's no self-service admin signup by design — after signing in once, set
 `is_admin = true` for your user directly in the Supabase Table Editor/SQL
 Editor.
 
-Open `/admin/moderation` with that account. **Every report, including
+Open `/admin` with that account for live operational counts, moderation and
+the traffic section; `/admin/moderation` is the dedicated review workspace.
+Without backend configuration, development offers only a clearly labelled
+read-only preview of this browser's existing test notes. It cannot review
+discarded preview photos or grant live admin access.
+
+**Every report, including
 text-only reports, starts pending.** Edit the public wording, confirm that
 text/photo review is complete, then approve or reject. A heuristic editing
 aid is not AI anonymisation. Reject images requiring redaction: the
 prototype does not yet include a blurring tool.
+
+Private evidence failures block approval rather than silently hiding a
+photo. Traffic shows an explicit disabled/setup state until configured.
+When enabled it groups counts by UTC day, public route and viewport class;
+it does not track individual journeys or deduplicate visitors. Old rows are
+pruned on subsequent traffic, not by an unattended scheduled job.
 
 ## Scripts
 ```bash
