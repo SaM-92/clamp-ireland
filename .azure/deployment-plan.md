@@ -31,7 +31,7 @@ new model deployments, resource creation, role changes or database migrations.
   read-only smoke and durable sanitized attempt records.
 - `src/modules/ai`, `ai-demo`, `content-policy`: server-only Azure provider,
   synthetic local demo and report/username admission checks.
-- Migration 0006 prepared, not applied.
+- Migrations 0006 and 0007 prepared, not applied.
 - Local verification: both final application builds pass; public/admin Linux
   image builds and network-isolated container smoke pass. Unit/server, SQL and
   release contracts pass. Integrated development coverage exposed a small-phone
@@ -71,6 +71,8 @@ This overall deployment checkbox remains incomplete:
 
 ## 7. Validation Proof
 
+The table below records the original `v0.1.0` preparation baseline.
+
 | Check | Actual command/evidence | Result |
 | --- | --- | --- |
 | CLI | `az version --output json` | Installed |
@@ -86,6 +88,28 @@ This overall deployment checkbox remains incomplete:
 | Deployment prerequisites | GitHub environment/variable/secret names inspected read-only | No configured environments/required settings; deployment blocked |
 | Role templates | No IaC role assignments generated | Production roles unverified; no role changes authorized |
 
+### Readiness recheck: 2026-09-22
+
+- Application commit `961ebb167b812fbd8f25d1933ec3e45c932e1eb5` passed
+  hosted CI run `35759192462`: lint/unit/server/SQL and both production
+  builds with synthetic browser smoke.
+- `gh api repos/SaM-92/clamp-ireland/environments` returned no environments.
+  Repository variable and secret **name-only** listings were also empty.
+  Release/production setup, reviewer protection and deployment settings
+  therefore remain blockers.
+- `Test-Path infra\main.bicep` returned false. There is no approved
+  provisioning template to compile, validate or run what-if against.
+  Production targets, RBAC and real backend operations remain unverified.
+- `git rev-list -1 v0.1.0` resolved to `287a0e3...`, not the latest application
+  commit. Before releasing the newer fixes, commit a new package version and
+  matching source tag; do not move the published baseline tag.
+- Migration 0007 is now required for concise v2 summaries, in addition to
+  the prior backend migrations. No live migration was performed.
+
+Result: **code and release automation are verified; production deployment
+readiness is still blocked**. This readiness question did not lift the
+owner's hold or authorize provisioning, identity changes or deployment.
+
 Local Azure inference was verified separately using only fixed synthetic
 examples and the existing CLI identity. It does not establish managed-identity
 access in production. Backend identities, image storage and real user flows
@@ -96,7 +120,8 @@ remain launch prerequisites. Do not invoke azure-deploy from this state.
 Mode: MODIFY. Stack: two independent Next.js/TypeScript applications, Supabase
 data/auth and private image storage. Existing Playwright tests include pure
 contracts, mocked server integrations, SQL policy checks and browser workflows.
-No GitHub Actions workflows or deployment environments currently exist.
+Before this preparation, no GitHub Actions workflows or deployment
+environments existed. Workflows are now implemented; environments remain absent.
 
 Recipe: GitHub Actions with Azure CLI for a manually approved release pipeline
 to separately provisioned Container Apps. Custom release/version recording and
