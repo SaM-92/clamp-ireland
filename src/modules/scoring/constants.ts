@@ -20,6 +20,9 @@ export const HALF_LIFE_DAYS = 180;
 /** Saturation constant for the diminishing-returns curve — see calculateRiskScore. */
 export const SATURATION_K = 25;
 
+/** Anonymous ("no account needed") reports count for half the weight of an equivalent signed-in report. */
+export const ANONYMOUS_WEIGHT_MULTIPLIER = 0.5;
+
 /** risk_score (0-100) thresholds that map to a human-readable risk level. */
 export const RISK_LEVEL_THRESHOLDS = {
   medium: 20,

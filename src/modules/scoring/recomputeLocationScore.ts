@@ -11,11 +11,14 @@ export async function recomputeLocationScore(locationId: string, db?: SqlConnect
   const rows = z.array(z.object({
     reporter_type: z.enum(["victim", "neighbour", "witness"]),
     // mssql returns `bit` columns as JS booleans; better-sqlite3 returned 0/1 integers.
-    has_image: z.union([z.literal(0), z.literal(1), z.boolean()]), created_at: z.string(),
-  })).parse(await connection.prepare(`SELECT reporter_type,has_image,created_at FROM reports
+    has_image: z.union([z.literal(0), z.literal(1), z.boolean()]),
+    is_anonymous: z.union([z.literal(0), z.literal(1), z.boolean()]),
+    created_at: z.string(),
+  })).parse(await connection.prepare(`SELECT reporter_type,has_image,is_anonymous,created_at FROM reports
     WHERE location_id=? AND moderation_status='published' AND reviewed_at IS NOT NULL AND is_removed=0`).all(locationId));
   const score = calculateRiskScore(rows.map((row) => ({
-    reporterType: row.reporter_type, hasImage: row.has_image === 1 || row.has_image === true, createdAt: new Date(row.created_at),
+    reporterType: row.reporter_type, hasImage: row.has_image === 1 || row.has_image === true,
+    isAnonymous: row.is_anonymous === 1 || row.is_anonymous === true, createdAt: new Date(row.created_at),
   })));
   await connection.prepare("UPDATE locations SET risk_score=?,risk_level=?,report_count=?,updated_at=? WHERE id=?")
     .run(score, riskLevelFromScore(score), rows.length, new Date().toISOString(), locationId);

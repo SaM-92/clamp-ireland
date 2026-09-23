@@ -8,6 +8,7 @@ export const adminOverviewSchema = z.object({
   rejected: count,
   totalReports: count,
   totalUsers: count,
+  autoPublished: count,
 });
 
 export type AdminOverview = z.infer<typeof adminOverviewSchema>;

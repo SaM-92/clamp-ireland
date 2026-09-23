@@ -6,7 +6,7 @@ import { MapView } from "@/modules/map/components/MapView";
 import { CITIES, type MapFocus } from "@/modules/map/lib/mapStyle";
 import { ReportDialog, type ReportFormValues } from "@/modules/reports/components/ReportForm";
 import { TransparencySignal } from "@/modules/dashboard/components/TransparencySignal";
-import { fetchLocations, ensureLocation } from "@/modules/locations/api";
+import { fetchLocations } from "@/modules/locations/api";
 import { submitReport } from "@/modules/reports/api";
 import { getSession } from "@/modules/auth/lib/session";
 import { getPreviewNotes, loadPreviewReports, savePreviewReports, summarizePreviewReports, type PreviewReport } from "@/modules/reports/lib/previewReports";
@@ -31,6 +31,7 @@ export function HomeClient({ initialStats, preview, aiDemo = false }: { initialS
   const [selectedLocation, setSelectedLocation] = useState<LocationSummary | null>(null);
   const [showZones, setShowZones] = useState(true);
   const [message, setMessage] = useState<string | null>(null);
+  const [signedIn, setSignedIn] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -40,8 +41,11 @@ export function HomeClient({ initialStats, preview, aiDemo = false }: { initialS
           const reports = loadPreviewReports();
           if (active) setPreviewReports(reports);
         } else {
-          const items = await fetchLocations();
-          if (active) setLocations(items);
+          const [items, session] = await Promise.all([fetchLocations(), getSession()]);
+          if (active) {
+            setLocations(items);
+            setSignedIn(session.signedIn);
+          }
         }
       } catch (cause) {
         if (active) setLoadError(cause instanceof Error ? cause.message : "Could not load reports.");
@@ -109,13 +113,15 @@ export function HomeClient({ initialStats, preview, aiDemo = false }: { initialS
       setMessage("Preview report saved on this browser only, with simulated approval. Notes stay local; photos are not stored or uploaded.");
       return;
     }
-    if (!(await getSession()).signedIn) throw new Error("Sign in to submit a report. Browsing the map does not require an account.");
-    const location = await ensureLocation(pendingPin.lat, pendingPin.lng);
-    const report = await submitReport({ locationId: location.id, ...values });
+    const report = await submitReport({ lat: pendingPin.lat, lng: pendingPin.lng, ...values });
     setPendingPin(null);
-    setMessage(report.moderation_status === "pending"
-      ? "Thank you. Your note and any photo are private until a human moderator approves them."
-      : "Thank you. Your report has been added to the community map.");
+    setMessage(report.moderation_status === "published"
+      ? "Thank you. Your report has been added to the community map."
+      : report.is_flagged
+      ? "Thank you. Your report was flagged for a quick moderator check and will appear on the map shortly after review."
+      : report.is_anonymous
+      ? "Thank you. Your anonymous note and any photo are private until a human moderator approves them."
+      : "Thank you. Your note and any photo are private until a human moderator approves them.");
     try {
       const [items, response] = await Promise.all([fetchLocations(), fetch("/api/dashboard/stats")]);
       if (!response.ok) throw new Error("Could not refresh counts.");
@@ -225,7 +231,7 @@ export function HomeClient({ initialStats, preview, aiDemo = false }: { initialS
         <div><span className="step-number">02</span><div><h2>Share an experience</h2><p>Clamped here, live nearby, or witnessed it? Add a factual report.</p></div></div>
         <div><span className="step-number">03</span><div><h2>Look out for each other</h2><p>Location-only reporting. All notes and photos stay private until reviewed.</p></div></div>
       </section>
-      {pendingPin && <ReportDialog location={pendingPin} preview={preview} onSubmit={handleReportSubmit} onCancel={() => setPendingPin(null)} />}
+      {pendingPin && <ReportDialog location={pendingPin} preview={preview} signedIn={signedIn} onSubmit={handleReportSubmit} onCancel={() => setPendingPin(null)} />}
       {selectedLocation && <LocationNotes key={selectedLocation.id} location={selectedLocation}
         previewNotes={preview ? getPreviewNotes(previewReports, selectedLocation.id) : null}
         onClose={() => setSelectedLocation(null)}

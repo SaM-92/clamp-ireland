@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { z } from "zod";
+import { formatDate } from "@/lib/dateFormat";
 import { publicSummaryResponseSchema, type PublicSummaryResponse } from "../types";
 import styles from "./AreaSummaries.module.css";
 
@@ -57,14 +58,14 @@ export function NearbySummary({ locationId, preview }: { locationId: string; pre
   }, [locationId, real, revision]);
 
   return <section className={styles.nearby} aria-label="Nearby reports summary">
-    <h3>Nearby reports · 500 m</h3>
+    <h3>Nearby summary</h3>
     {!real ? <p>Real area summaries require a configured backend. Browser-local preview notes never trigger generation.</p>
       : loading ? <p role="status">Checking the current reviewed summary...</p>
       : error ? <div role="alert"><p>{error}</p><button className="text-button" onClick={() => setRevision((value) => value + 1)}>Retry summary</button></div>
       : result?.state === "available" ? <>
         <p>{result.summary.sentence}</p>
-        <p className="field-hint">{result.summary.sourceCount} human-approved notes · Generated {new Date(result.summary.generatedAt).toLocaleDateString()} · Reviewed {new Date(result.summary.reviewedAt).toLocaleDateString()}</p>
+        <p className="field-hint">{result.summary.sourceCount} notes · reviewed {formatDate(result.summary.reviewedAt)}</p>
       </> : <p>{result ? result.message : "No current reviewed summary to display."}</p>}
-    <p className="field-hint">AI-assisted wording needs separate human approval and describes community reports, not verified incidents. The 100 m map circle and risk score are unchanged. Opening this panel never generates a summary.</p>
+    <p className="field-hint">AI-assisted wording, human-reviewed before publishing.</p>
   </section>;
 }

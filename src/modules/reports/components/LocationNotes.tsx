@@ -74,14 +74,23 @@ export function LocationNotes({ location, previewNotes, onClose, onReport }: {
       <div className="notes-content">
         <p className="notes-summary"><span className={`legend-dot risk-${location.riskLevel}`} />{location.riskLevel} signal · {location.reportCount} reports · 100 m zone</p>
         <p className="field-hint">The circle shows an approximate area around the reports, not an official restriction or prediction. New notes need human approval before they count.</p>
-        <NearbySummary key={`${location.id}:${preview}`} locationId={location.id} preview={preview} />
         {loading ? <p role="status">Loading notes...</p> : error ?
           <div className="form-error" role="alert">{error}<button className="text-button" onClick={() => setRetry((value) => value + 1)}>Retry notes</button></div> :
           displayed.length === 0 ? <p>No approved notes to show yet.</p> :
           <ul className="public-notes">{displayed.map((note) => (
             <li key={note.id}>
-              <div><strong>{REPORTER_LABELS[note.reporterType]}</strong><time dateTime={note.incidentDate ?? note.createdAt}>{(note.incidentDate ?? note.createdAt).slice(0, 10)}</time></div>
+              <div><strong>{REPORTER_LABELS[note.reporterType]}</strong>
+                {note.isAnonymous && note.nickname && <span className="reporter-nickname"> · {note.nickname}</span>}
+                {typeof note.isAnonymous === "boolean" && (
+                <span className={`identity-tag ${note.isAnonymous ? "identity-tag-anonymous" : "identity-tag-verified"}`}>
+                  {note.isAnonymous ? "Anonymous" : "Verified user"}
+                </span>
+              )}<time dateTime={note.incidentDate ?? note.createdAt}>{(note.incidentDate ?? note.createdAt).slice(0, 10)}</time></div>
               <p>{note.description}</p>
+              {note.imageUrl && (
+                // eslint-disable-next-line @next/next/no-img-element -- signed URL from private blob storage, must not pass through a public image optimizer
+                <img className="report-photo" src={note.imageUrl} alt="Photo submitted with this report" loading="lazy" referrerPolicy="no-referrer" />
+              )}
               {preview ? (
                 <ReportVotes reportId={note.id} preview counts={{ agreeCount: 0, disagreeCount: 0 }} />
               ) : note.voteCounts ? (
@@ -93,6 +102,7 @@ export function LocationNotes({ location, previewNotes, onClose, onReport }: {
             </li>
           ))}</ul>}
         {displayed.length === 50 && <p className="field-hint">Showing the latest 50 approved notes.</p>}
+        <NearbySummary key={`${location.id}:${preview}`} locationId={location.id} preview={preview} />
         <button className="button button-primary" onClick={onReport}><Icon name="plus" /> Add a report here</button>
       </div>
     </dialog>

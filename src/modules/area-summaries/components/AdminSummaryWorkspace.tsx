@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { z } from "zod";
+import { formatDateTime } from "@/lib/dateFormat";
 import {
   adminSummaryResponseSchema, summarySentenceSchema, summaryWordCount,
   AREA_SUMMARY_MAX_SENTENCE_LENGTH, AREA_SUMMARY_MAX_WORDS,
@@ -222,7 +223,7 @@ export function AdminSummaryWorkspace({ initialSetup }: { initialSetup: SummaryS
       </section>}
       {workspace.published && <section className={styles.card} aria-label="Current published summary">
         <h2>Current published summary</h2><p>{workspace.published.sentence}</p>
-        <p className="field-hint">{workspace.published.sourceCount} community notes, human-reviewed {new Date(workspace.published.reviewedAt).toLocaleString()}. Not a verified incident or legal requirement.</p>
+        <p className="field-hint">{workspace.published.sourceCount} community notes, human-reviewed {formatDateTime(workspace.published.reviewedAt)}. Not a verified incident or legal requirement.</p>
       </section>}
     </>}
   </div>;

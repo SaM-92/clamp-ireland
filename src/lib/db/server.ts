@@ -20,13 +20,15 @@ function config(): AzureSqlConfig {
   };
 }
 
-let pool: Promise<ConnectionPool> | undefined;
+// Always re-resolve through openDatabase() rather than caching the pool promise
+// here: sql-store.mjs's own cache re-authenticates ~20 minutes before an Entra
+// access token's ~60-90 minute lifetime elapses, but only if openDatabase() is
+// actually called again. Caching the resolved pool at this layer (the previous
+// `pool ??= ...` pattern) prevented that refresh from ever running again after
+// the first successful connection, so long-running dev/production processes
+// eventually failed with "Login failed for user '<token-identified principal>'."
 function connection(): Promise<ConnectionPool> {
-  pool ??= openDatabase(config()).catch((error: unknown) => {
-    pool = undefined;
-    throw error;
-  });
-  return pool;
+  return openDatabase(config());
 }
 
 /** Returns the shared Azure SQL connection, wrapped in a `.prepare().get/.all/.run()`

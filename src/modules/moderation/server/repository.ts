@@ -4,12 +4,12 @@ import { database, writeTransaction } from "@/lib/db/server";
 import { getSignedImageUrl } from "@/modules/reports/server/imageStorage";
 import { recomputeLocationScore } from "@/modules/scoring";
 import { invalidateNearbyAreaSummaries } from "@/modules/area-summaries/server/repository";
-import { pendingReportsSchema, type PendingReport } from "../types";
+import { pendingReportsSchema, type PendingReport, publishedReportsSchema, type PublishedReport } from "../types";
 
 /** Text and photos awaiting human review. */
 export async function listPendingReports(): Promise<PendingReport[]> {
   const db = await database();
-  const data = await db.prepare(`SELECT id,location_id,reporter_type,description,has_image,image_url,created_at
+  const data = await db.prepare(`SELECT id,location_id,reporter_type,description,has_image,image_url,created_at,is_anonymous,is_flagged
     FROM reports WHERE moderation_status='pending' AND is_removed=0 ORDER BY created_at,id`).all();
 
   const reports = await Promise.all(
@@ -33,6 +33,8 @@ export async function listPendingReports(): Promise<PendingReport[]> {
         description: row.description ?? "",
         createdAt: row.created_at,
         hasImage, imageUrl, imageError,
+        isAnonymous: row.is_anonymous === 1 || row.is_anonymous === true,
+        isFlagged: row.is_flagged === 1 || row.is_flagged === true,
       };
     })
   );
@@ -75,6 +77,41 @@ export async function rejectReport(reportId: string) {
       WHERE id=? AND moderation_status='pending' AND is_removed=0`).get(reportId);
     if (!data) throw new Error("Only an existing pending report can be rejected.");
     await recomputeLocationScore(z.uuid().parse(data.location_id), db);
+    return data;
+  });
+}
+
+/** Live, published notes an admin can still take down after the fact. */
+export async function listPublishedReports(): Promise<PublishedReport[]> {
+  const db = await database();
+  const data = await db.prepare(`SELECT TOP (200) id,location_id,reporter_type,description,has_image,created_at,reviewed_at,is_anonymous,
+      CASE WHEN reviewed_by IS NULL THEN 1 ELSE 0 END AS auto_published
+    FROM reports WHERE moderation_status='published' AND is_removed=0 ORDER BY reviewed_at DESC,id DESC`).all();
+  return publishedReportsSchema.parse((data ?? []).map((row) => ({
+    id: row.id, locationId: row.location_id, reporterType: row.reporter_type,
+    description: row.description ?? "", hasImage: Boolean(row.has_image), createdAt: row.created_at, reviewedAt: row.reviewed_at,
+    isAnonymous: row.is_anonymous === 1 || row.is_anonymous === true,
+    autoPublished: row.auto_published === 1 || row.auto_published === true,
+  })));
+}
+
+/** Soft-removes a report that is already live - same visibility rules as a moderator rejection,
+ * just reachable from a published state instead of pending. The row (and its private original
+ * text/photo) stays in the database for audit; it only disappears from dbo.reports_public. */
+export async function removePublishedReport(reportId: string, adminId: string) {
+  return writeTransaction(async (db) => {
+    if (!(await db.prepare("SELECT id FROM profiles WHERE id=? AND is_admin=1 AND is_banned=0").get(adminId))) {
+      throw new Error("An active human administrator is required.");
+    }
+    const data = await db.prepare(`UPDATE reports SET is_removed=1
+      OUTPUT inserted.id,inserted.location_id
+      WHERE id=? AND moderation_status='published' AND is_removed=0`).get(reportId);
+    if (!data) throw new Error("Only an existing published report can be removed.");
+    const locationId = z.uuid().parse(data.location_id);
+    await recomputeLocationScore(locationId, db);
+    const location = z.object({ latitude: z.number(), longitude: z.number() }).nullable()
+      .parse(await db.prepare("SELECT lat AS latitude,lng AS longitude FROM locations WHERE id=?").get(locationId));
+    if (location) await invalidateNearbyAreaSummaries(location, db);
     return data;
   });
 }

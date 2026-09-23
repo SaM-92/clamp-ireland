@@ -1,10 +1,12 @@
 import type { ReporterType } from "@/modules/reports/types";
-import { HALF_LIFE_DAYS, REPORTER_WEIGHTS, SATURATION_K } from "./constants";
+import { ANONYMOUS_WEIGHT_MULTIPLIER, HALF_LIFE_DAYS, REPORTER_WEIGHTS, SATURATION_K } from "./constants";
 
 export interface ScorableReport {
   reporterType: ReporterType;
   hasImage: boolean;
   createdAt: Date;
+  /** Anonymous ("no account needed") reports contribute at half weight - see constants.ts. */
+  isAnonymous?: boolean;
 }
 
 const MS_PER_DAY = 86_400_000;
@@ -26,7 +28,7 @@ export function calculateRiskScore(
     const weight =
       REPORTER_WEIGHTS[report.reporterType][
         report.hasImage ? "withImage" : "withoutImage"
-      ];
+      ] * (report.isAnonymous ? ANONYMOUS_WEIGHT_MULTIPLIER : 1);
     const ageDays = Math.max(
       (now.getTime() - report.createdAt.getTime()) / MS_PER_DAY,
       0

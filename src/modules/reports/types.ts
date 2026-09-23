@@ -13,6 +13,9 @@ export interface PublicReport {
   incidentDate: string | null;
   createdAt: string;
   voteCounts?: VoteCounts;
+  imageUrl?: string | null;
+  isAnonymous?: boolean;
+  nickname?: string | null;
 }
 
 export interface SubmittedReport {
@@ -24,4 +27,6 @@ export interface SubmittedReport {
   incident_date: string | null;
   moderation_status: ModerationStatus;
   created_at: string;
+  is_anonymous: boolean;
+  is_flagged: boolean;
 }

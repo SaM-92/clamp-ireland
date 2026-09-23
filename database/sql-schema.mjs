@@ -174,4 +174,55 @@ CREATE TABLE dbo.area_summary_generation_leases (
   expires_at bigint NOT NULL,
   PRIMARY KEY (latitude,longitude)
 );
+`, `
+-- Anonymous ("no account needed") reporting tier. Every anonymous report is
+-- attributed in the database to one reserved, well-known profile row (never
+-- a real Google-signed-in person) so reports.user_id can stay NOT NULL with
+-- its existing FK, and every other query/join keeps working unchanged. The
+-- is_anonymous flag is what actually distinguishes these reports; the
+-- reserved profile itself is never signed into and never appears in an
+-- oauth/session flow. See src/modules/reports/anonymous.ts.
+ALTER TABLE dbo.reports ADD is_anonymous bit NOT NULL DEFAULT 0;
+IF NOT EXISTS (SELECT 1 FROM dbo.profiles WHERE id='00000000-0000-4000-8000-000000000001')
+INSERT INTO dbo.profiles (id,google_subject,email,display_name,username_policy_checked_at,created_at,is_admin,is_banned)
+VALUES ('00000000-0000-4000-8000-000000000001','reserved:anonymous-reporter','anonymous@clamptracker.ie','anonymous','2024-01-01T00:00:00.000Z','2024-01-01T00:00:00.000Z',0,0);
+`, `
+-- Publish approved report photos publicly. Automated face/plate blurring is
+-- not implemented (see docs/04-legal-considerations.md); the safeguard is
+-- that a human moderator must already judge a photo free of identifying
+-- details before approving it at all (see ModerationQueue's "reject rather
+-- than approve" instruction) - so a published report's photo is already
+-- vetted. ALTER VIEW must be the sole statement in its batch.
+ALTER VIEW dbo.reports_public AS
+ SELECT r.id,r.location_id,r.reporter_type,r.description,r.incident_date,r.created_at,
+   r.has_image,r.image_url,
+   (SELECT count(*) FROM dbo.report_votes v WHERE v.report_id=r.id AND v.vote='agree') AS agree_count,
+   (SELECT count(*) FROM dbo.report_votes v WHERE v.report_id=r.id AND v.vote='disagree') AS disagree_count
+ FROM dbo.reports r WHERE r.moderation_status='published' AND r.reviewed_at IS NOT NULL AND r.is_removed=0;
+`, `
+-- Expose is_anonymous so the public UI can label each note "Anonymous" or
+-- "Verified user" - no other identity data is added. ALTER VIEW must be the
+-- sole statement in its batch.
+ALTER VIEW dbo.reports_public AS
+ SELECT r.id,r.location_id,r.reporter_type,r.description,r.incident_date,r.created_at,
+   r.has_image,r.image_url,r.is_anonymous,
+   (SELECT count(*) FROM dbo.report_votes v WHERE v.report_id=r.id AND v.vote='agree') AS agree_count,
+   (SELECT count(*) FROM dbo.report_votes v WHERE v.report_id=r.id AND v.vote='disagree') AS disagree_count
+ FROM dbo.reports r WHERE r.moderation_status='published' AND r.reviewed_at IS NOT NULL AND r.is_removed=0;
+`, `
+-- A required, freeform display nickname for anonymous submitters only (a
+-- signed-in user already has a checked public username - see profiles -
+-- so this stays NULL for them). It is content-policy checked like any other
+-- user-supplied text, but never verified against a real identity: it exists
+-- purely so an anonymous report reads as "from a person", not a blank
+-- silhouette, while the "Anonymous" trust badge still always applies.
+ALTER TABLE dbo.reports ADD nickname nvarchar(60) NULL;
+GO
+-- ALTER VIEW must be the sole statement in its batch.
+ALTER VIEW dbo.reports_public AS
+ SELECT r.id,r.location_id,r.reporter_type,r.description,r.incident_date,r.created_at,
+   r.has_image,r.image_url,r.is_anonymous,r.nickname,
+   (SELECT count(*) FROM dbo.report_votes v WHERE v.report_id=r.id AND v.vote='agree') AS agree_count,
+   (SELECT count(*) FROM dbo.report_votes v WHERE v.report_id=r.id AND v.vote='disagree') AS disagree_count
+ FROM dbo.reports r WHERE r.moderation_status='published' AND r.reviewed_at IS NOT NULL AND r.is_removed=0;
 `];

@@ -15,7 +15,7 @@ test("admin overview authenticates before real Azure SQL counts and reports stor
     const response = await route.GET(request);
     expect(response.status).toBe(200);
     expect(response.headers.get("cache-control")).toContain("no-store");
-    expect(await response.json()).toEqual({ pending: 1, published: 1, rejected: 1, totalReports: 4, totalUsers: 3 });
+    expect(await response.json()).toEqual({ pending: 1, published: 1, rejected: 1, totalReports: 4, totalUsers: 4, autoPublished: 0 });
     await f.pool.close();
     const failure = await route.GET(request);
     expect(failure.status).toBe(500);

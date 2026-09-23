@@ -1,28 +1,35 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import type { FormEvent } from "react";
 import type { ReporterType } from "../types";
 import { Icon } from "@/lib/components/Icon";
 import type { MapFocus } from "@/modules/map/lib/mapStyle";
 import Link from "next/link";
-import { validateContent } from "@/modules/content-policy/policy";
+import { validateContent, CONTENT_LIMITS } from "@/modules/content-policy/policy";
 import { PHOTO_ACCEPT, PHOTO_HINT, validatePhoto } from "@/modules/photos/policy";
+import { TurnstileWidget } from "@/modules/content-policy/components/TurnstileWidget";
+import { env } from "@/lib/env";
+import { todayInDublin } from "@/lib/dateFormat";
 
 export interface ReportFormValues {
   reporterType: ReporterType;
   description: string;
   incidentDate: string;
   image: File | null;
+  turnstileToken?: string;
+  nickname?: string;
 }
 
 interface ReportFormProps {
   onSubmit: (values: ReportFormValues) => Promise<void>;
   onCancel: () => void;
   preview?: boolean;
+  /** Signed-in users skip the bot-check widget; anonymous submitters need it. */
+  signedIn?: boolean;
 }
 
-export function ReportDialog({ location, preview, onSubmit, onCancel }: ReportFormProps & { location: MapFocus }) {
+export function ReportDialog({ location, preview, signedIn, onSubmit, onCancel }: ReportFormProps & { location: MapFocus }) {
   const dialog = useRef<HTMLDialogElement>(null);
   useEffect(() => {
     const previous = document.activeElement;
@@ -43,18 +50,24 @@ export function ReportDialog({ location, preview, onSubmit, onCancel }: ReportFo
         </div>
         <button className="icon-button" aria-label="Close report form" onClick={onCancel}><Icon name="close" /></button>
       </div>
-      <ReportForm onSubmit={onSubmit} onCancel={onCancel} preview={preview} />
+      <ReportForm onSubmit={onSubmit} onCancel={onCancel} preview={preview} signedIn={signedIn} />
     </dialog>
   );
 }
 
-export function ReportForm({ onSubmit, onCancel, preview = false }: ReportFormProps) {
+export function ReportForm({ onSubmit, onCancel, preview = false, signedIn = true }: ReportFormProps) {
   const [reporterType, setReporterType] = useState<ReporterType>("victim");
   const [description, setDescription] = useState("");
   const [incidentDate, setIncidentDate] = useState("");
+  const [nickname, setNickname] = useState("");
   const [image, setImage] = useState<File | null>(null);
+  const [honeypot, setHoneypot] = useState("");
+  const [turnstileToken, setTurnstileToken] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [submitStatus, setSubmitStatus] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const anonymous = !preview && !signedIn;
+  const handleTurnstileToken = useCallback((token: string) => setTurnstileToken(token), []);
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
@@ -62,21 +75,57 @@ export function ReportForm({ onSubmit, onCancel, preview = false }: ReportFormPr
       setError("Please describe what happened before submitting.");
       return;
     }
+    if (anonymous && !nickname.trim()) {
+      setError("Enter a name or nickname before submitting.");
+      return;
+    }
+    if (honeypot.trim() !== "") return; // Silently drop bot submissions that fill the decoy field.
+    if (incidentDate && incidentDate > todayInDublin()) {
+      setError("Incident date cannot be in the future.");
+      return;
+    }
+    if (anonymous && env.NEXT_PUBLIC_TURNSTILE_SITE_KEY && !turnstileToken) {
+      setError("Complete the bot check before submitting.");
+      return;
+    }
     setSubmitting(true);
+    setSubmitStatus("Running a safety check and saving your report…");
     setError(null);
     try {
       const checkedDescription = validateContent("report_note", description);
+      const checkedNickname = anonymous ? validateContent("nickname", nickname) : undefined;
       if (image) validatePhoto(image);
-      await onSubmit({ reporterType, description: checkedDescription, incidentDate, image });
+      await onSubmit({ reporterType, description: checkedDescription, incidentDate, image,
+        turnstileToken: anonymous ? turnstileToken : undefined, nickname: checkedNickname });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong.");
     } finally {
       setSubmitting(false);
+      setSubmitStatus("");
     }
   }
 
   return (
     <form onSubmit={handleSubmit} className="report-form">
+      {anonymous && (
+        <p className="field-hint anonymous-banner">
+          Reporting anonymously — no account needed. <Link href="/auth/username">Sign in</Link> instead for a higher trust weighting on your reports.
+        </p>
+      )}
+      {anonymous && (
+        <label className="field">
+          Your name or nickname
+          <input
+            type="text"
+            value={nickname}
+            onChange={(e) => setNickname(e.target.value)}
+            required
+            maxLength={CONTENT_LIMITS.nickname}
+            placeholder="e.g. Dave, or any nickname you like"
+          />
+          <span className="field-hint">Shown next to your report with an &quot;Anonymous&quot; tag - it doesn&apos;t need to be your real name.</span>
+        </label>
+      )}
       <label className="field">
         I am reporting as
         <select
@@ -95,18 +144,20 @@ export function ReportForm({ onSubmit, onCancel, preview = false }: ReportFormPr
           onChange={(e) => setDescription(e.target.value)}
           rows={4}
           required
-          maxLength={2000}
+          maxLength={CONTENT_LIMITS.report_note}
           placeholder="For example: my car was clamped here on a Saturday afternoon."
         />
+        <span className="field-hint">{description.length}/{CONTENT_LIMITS.report_note} characters</span>
         <span className="field-hint">Factual criticism is welcome. Profanity, abuse and threats are not. Leave out names, number plates, and personal details.</span>
         <span className="field-hint">{preview ? "Local rules only: this note stays in your browser until Reset preview and is never sent to Azure. Contextual AI is shown separately in the synthetic demo." : "A human moderator reviews every note before it appears on the map."}</span>
-        {!preview && <span className="field-hint">Before posting, <Link href="/auth/username">choose your checked public username</Link>.</span>}
+        {!preview && !anonymous && <span className="field-hint">Before posting, <Link href="/auth/username">choose your checked public username</Link>.</span>}
       </label>
       <label className="field">
         Date it happened (optional)
         <input
           type="date"
           value={incidentDate}
+          max={todayInDublin()}
           onChange={(e) => setIncidentDate(e.target.value)}
         />
       </label>
@@ -131,14 +182,31 @@ export function ReportForm({ onSubmit, onCancel, preview = false }: ReportFormPr
         <span className="field-hint">{PHOTO_HINT}</span>
         <span className="field-hint">{preview ? "Preview only. Photos are not uploaded or stored." : "Photos remain private evidence for moderators, even after a report is approved. Avoid faces and number plates."}</span>
       </label>
+      {/* Honeypot: hidden from real visitors (off-screen, not display:none, since some
+          bots skip display:none fields), left blank by them, and never rendered for
+          preview or signed-in submissions where it isn't needed. */}
+      {anonymous && (
+        <label className="visually-hidden" aria-hidden="true">
+          Leave this field blank
+          <input type="text" name="website" tabIndex={-1} autoComplete="off" value={honeypot} onChange={(e) => setHoneypot(e.target.value)} />
+        </label>
+      )}
+      {anonymous && env.NEXT_PUBLIC_TURNSTILE_SITE_KEY && (
+        <TurnstileWidget siteKey={env.NEXT_PUBLIC_TURNSTILE_SITE_KEY} onToken={handleTurnstileToken} />
+      )}
       {error && <p className="form-error" role="alert">{error}</p>}
+      {submitting && (
+        <p className="field-hint submit-status" role="status">
+          <span className="spinner" aria-hidden="true" />{submitStatus}
+        </p>
+      )}
       <div className="dialog-actions">
         <button
           type="submit"
           disabled={submitting}
           className="button button-primary"
         >
-          {submitting ? "Submitting..." : preview ? "Save preview report" : "Submit report"}
+          {submitting ? "Checking…" : preview ? "Save preview report" : "Submit report"}
         </button>
         <button type="button" onClick={onCancel} disabled={submitting} className="button button-surface">
           Cancel

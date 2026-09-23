@@ -78,15 +78,19 @@ export async function sqlRuntime(dependencies: Record<string, unknown> = {}, glo
     headers.set("origin", origin);
     return new Request(`${origin}${route}`, { ...options, headers });
   }
-  async function report(options: { id?: string; location?: string; status?: "pending" | "published" | "rejected"; text?: string; photo?: string; user?: string } = {}) {
+  async function report(options: { id?: string; location?: string; status?: "pending" | "published" | "rejected"; text?: string; photo?: string; user?: string; anonymous?: boolean; nickname?: string | null; reviewedBy?: string | null } = {}) {
     const id = options.id ?? randomUUID();
     const status = options.status ?? "published";
     const createdAt = new Date().toISOString();
+    // A published fixture report simulates a real human moderator's approval (reviewed_by set)
+    // by default; pass reviewedBy: null explicitly to simulate the AI auto-publish path instead.
+    const reviewedBy = status === "published" ? (options.reviewedBy !== undefined ? options.reviewedBy : owner) : null;
     await db.prepare(`INSERT INTO reports(id,location_id,user_id,reporter_type,has_image,image_url,description,description_raw,
-      created_at,moderation_status,reviewed_at) VALUES (?,?,?,'witness',?,?,?,?,?,?,?)`).run(
+      created_at,moderation_status,reviewed_at,reviewed_by,is_anonymous,nickname) VALUES (?,?,?,'witness',?,?,?,?,?,?,?,?,?,?)`).run(
       id, options.location ?? locationId, options.user ?? owner, Number(Boolean(options.photo)), options.photo ?? null,
       options.text ?? "Parking permits are mentioned.", "PRIVATE ORIGINAL", createdAt, status,
-      status === "published" ? new Date().toISOString() : null);
+      status === "published" ? new Date().toISOString() : null, reviewedBy, Number(Boolean(options.anonymous)),
+      options.nickname ?? null);
     return id;
   }
   async function close() {

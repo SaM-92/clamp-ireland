@@ -10,5 +10,6 @@ export async function getAdminOverview(): Promise<AdminOverview> {
     (SELECT count(*) FROM reports WHERE moderation_status='published' AND is_removed=0) AS published,
     (SELECT count(*) FROM reports WHERE moderation_status='rejected') AS rejected,
     (SELECT count(*) FROM reports) AS totalReports,
-    (SELECT count(*) FROM profiles) AS totalUsers`).get());
+    (SELECT count(*) FROM profiles) AS totalUsers,
+    (SELECT count(*) FROM reports WHERE moderation_status='published' AND is_removed=0 AND reviewed_by IS NULL) AS autoPublished`).get());
 }

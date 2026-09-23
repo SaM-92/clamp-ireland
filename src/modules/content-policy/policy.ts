@@ -1,12 +1,12 @@
-export type ContentKind = "report_note" | "username";
+export type ContentKind = "report_note" | "username" | "nickname";
 
-export const CONTENT_LIMITS = { report_note: 2000, username: 24 } as const;
+export const CONTENT_LIMITS = { report_note: 800, username: 24, nickname: 40 } as const;
 export const POLICY_TEXT = {
   allowed: "Passed content checks. Reports still need human review before publication.",
   profanity: "Blocked because it contains profanity. Please remove it; factual criticism is welcome.",
   abuse: "Blocked because it contains personal abuse, hate, harassment or threats. Describe what happened without attacking anyone.",
-  unsafe_username: "Blocked because this username appears to impersonate someone or reveal personal details. Choose a neutral pseudonym.",
-  prompt_injection: "Blocked because it asks the content checker to ignore or change its rules. Submit only your report or username.",
+  unsafe_username: "Blocked because this name appears to impersonate someone or reveal personal details. Choose a neutral pseudonym.",
+  prompt_injection: "Blocked because it asks the content checker to ignore or change its rules. Submit only your report, username or nickname.",
 } as const;
 export type PolicyCode = keyof typeof POLICY_TEXT;
 export interface PolicyClassification {
@@ -58,23 +58,30 @@ const profanityPatterns = profanity.map((word) =>
 );
 
 /** Cheap checks are deliberately word-bounded: "Scunthorpe" and "class" are not profanity. */
+function invalidContentMessage(kind: ContentKind): string {
+  if (kind === "username") return "Choose a username of 3 to 24 letters, numbers or underscores, starting with a letter.";
+  if (kind === "nickname") return `Enter a name or nickname of 1 to ${CONTENT_LIMITS.nickname} characters.`;
+  return `Describe what happened using 1 to ${CONTENT_LIMITS.report_note} characters.`;
+}
+
 export function validateContent(kind: ContentKind, input: unknown): string {
   if (typeof input !== "string" || input.length > CONTENT_LIMITS[kind] || /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/u.test(input)) {
-    throw new ContentPolicyError("invalid_content", 400, kind === "username"
-      ? "Choose a username of 3 to 24 letters, numbers or underscores, starting with a letter."
-      : "Describe what happened using 1 to 2000 characters.");
+    throw new ContentPolicyError("invalid_content", 400, invalidContentMessage(kind));
   }
   const normalized = normalizeContent(input);
   const text = kind === "username" ? normalized.toLowerCase() : normalized;
   if (!text || text.length > CONTENT_LIMITS[kind] || (kind === "username" && !/^[a-z][a-z0-9_]{2,23}$/.test(text))) {
-    throw new ContentPolicyError("invalid_content", 400, kind === "username"
-      ? "Choose a username of 3 to 24 letters, numbers or underscores, starting with a letter."
-      : "Describe what happened using 1 to 2000 characters.");
+    throw new ContentPolicyError("invalid_content", 400, invalidContentMessage(kind));
   }
   const folded = text.toLowerCase().normalize("NFKD").replace(/\p{M}/gu, "")
     .replace(/[аеіорсухѕһ013457@$!]/gu, (character) => confusables[character] ?? character);
   if (profanityPatterns.some((pattern) => pattern.test(folded))) throw rejectContent("profanity");
-  if (kind === "username" && /^(admin|administrator|moderator|official|support|clamp_?ireland)(?:_.*|\d*)$/.test(text)) {
+  // A nickname is a freeform display name (spaces/mixed case allowed, unlike
+  // a username), but still must not impersonate staff - squash it down to
+  // bare letters/digits first so "Official Support" is caught the same as
+  // "official_support" would be for a username.
+  if ((kind === "username" || kind === "nickname")
+    && /^(admin|administrator|moderator|official|support|clamp_?ireland)(?:_.*|\d*)$/.test(kind === "nickname" ? text.toLowerCase().replace(/[^a-z0-9]/gu, "") : text)) {
     throw rejectContent("unsafe_username");
   }
   if (/\bignore\b.{0,40}\b(previous|above|system|instructions)\b/i.test(text)

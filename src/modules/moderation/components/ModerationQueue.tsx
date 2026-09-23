@@ -2,6 +2,8 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { formatDateTime } from "@/lib/dateFormat";
+import { CONTENT_LIMITS } from "@/modules/content-policy/policy";
 import { pendingReportsSchema, type PendingReport } from "../types";
 import styles from "./ModerationQueue.module.css";
 
@@ -32,9 +34,10 @@ function ReviewCard({ report, onDecision }: { report: PendingReport; onDecision:
   }
   return (
     <li className={styles.card}>
-      <p>{report.reporterType} · {new Date(report.createdAt).toLocaleString()}</p>
+      <p>{report.reporterType}{report.isAnonymous ? " · anonymous" : ""}{report.isFlagged ? " · AI-flagged for review" : ""} · {formatDateTime(report.createdAt)}</p>
       <label className="field">Public note after review
-        <textarea rows={4} value={description} maxLength={2000} disabled={busy} onChange={(event) => { setDescription(event.target.value); setReviewed(false); }} />
+        <textarea rows={4} value={description} maxLength={CONTENT_LIMITS.report_note} disabled={busy} onChange={(event) => { setDescription(event.target.value); setReviewed(false); }} />
+        <span className="field-hint">{description.length}/{CONTENT_LIMITS.report_note} characters</span>
         <span className="field-hint">Remove names, identifying details and accusations. Preserve the factual experience; reject if it cannot be published safely.</span>
       </label>
       {report.imageUrl && <figure className={styles.evidence}>

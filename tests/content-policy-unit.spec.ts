@@ -2,7 +2,7 @@ import { expect, test } from "@playwright/test";
 import { policyRuntime } from "./helpers/content-policy-runtime";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { POLICY_TEXT, validateContent } from "../src/modules/content-policy/policy";
+import { POLICY_TEXT, validateContent, CONTENT_LIMITS } from "../src/modules/content-policy/policy";
 
 function fixture() {
   const requests: { instructions: string; input: string; maxOutputTokens: number; timeoutMs: number; format: unknown }[] = [];
@@ -42,7 +42,7 @@ test("clean criticism and benign substrings pass without being rewritten; inputs
   expect(f.CONTENT_POLICY_FORMAT.schema.required).toEqual(["decision", "code"]);
   expect(JSON.parse(f.requests[0].input)).toEqual({ kind: "report_note", text: "The signage was unclear and the release fee was unfairly expensive." });
   expect(() => f.assertApprovedContent({ kind: "report_note", text: "Forged approval" }, "report_note")).toThrow();
-  expect((await f.checkContentPolicy({ kind: "report_note", text: "A".repeat(2000) })).text).toHaveLength(2000);
+  expect((await f.checkContentPolicy({ kind: "report_note", text: "A".repeat(CONTENT_LIMITS.report_note) })).text).toHaveLength(CONTENT_LIMITS.report_note);
   expect((await f.checkContentPolicy({ kind: "username", text: "a".repeat(24) })).text).toHaveLength(24);
 });
 
@@ -51,7 +51,7 @@ test("deterministic profanity handles compatibility, separators, leetspeak and z
   for (const text of ["fuck", "ＦＵＣＫ", "f\u200buck", "f.u.c.k", "f u c k", "f**k", "sh1t", "b!tch", "аsshole"]) {
     await expect(Promise.resolve(f.checkContentPolicy({ kind: "report_note", text }))).rejects.toMatchObject({ code: "content_policy_rejected", status: 422 });
   }
-  for (const text of ["", " ".repeat(10), "x".repeat(2001), "\ufb03".repeat(1000), "invalid\u0000text"]) {
+  for (const text of ["", " ".repeat(10), "x".repeat(CONTENT_LIMITS.report_note + 1), "\ufb03".repeat(1000), "invalid\u0000text"]) {
     await expect(Promise.resolve(f.checkContentPolicy({ kind: "report_note", text }))).rejects.toMatchObject({ status: 400 });
   }
   expect(f.requests).toHaveLength(0);
@@ -69,6 +69,20 @@ test("username policy normalizes neutral pseudonyms and blocks unsafe names and 
   expect(f.requests).toHaveLength(1);
   f.result({ decision: "blocked", code: "unsafe_username" });
   await expect(Promise.resolve(f.checkContentPolicy({ kind: "username", text: "john_smith" }))).rejects.toMatchObject({ status: 422 });
+});
+
+test("nickname policy allows freeform casing and spaces but still blocks profanity, impersonation and oversized input before AI", async () => {
+  const f = fixture();
+  expect((await f.checkContentPolicy({ kind: "nickname", text: "  Dave  from   Rathmines  " })).text).toBe("Dave from Rathmines");
+  for (const text of ["Official", "Admin1", "ClampIreland", "fuck"]) {
+    await expect(Promise.resolve(f.checkContentPolicy({ kind: "nickname", text }))).rejects.toMatchObject({ status: 422 });
+  }
+  for (const text of ["", " ".repeat(10), "x".repeat(CONTENT_LIMITS.nickname + 1)]) {
+    await expect(Promise.resolve(f.checkContentPolicy({ kind: "nickname", text }))).rejects.toMatchObject({ status: 400 });
+  }
+  expect(f.requests).toHaveLength(1);
+  f.result({ decision: "blocked", code: "unsafe_username" });
+  await expect(Promise.resolve(f.checkContentPolicy({ kind: "nickname", text: "Dave" }))).rejects.toMatchObject({ status: 422 });
 });
 
 test("prompt instructions are rejected cheaply or treated as data by contextual gate", async () => {
@@ -127,6 +141,7 @@ test("report preview labels local-only rules honestly and preserves production h
   const rt = policyRuntime({
     "@/lib/components/Icon": { Icon: () => null },
     "next/link": () => null,
+    "@/lib/env": { env: { NEXT_PUBLIC_TURNSTILE_SITE_KEY: "" } },
   });
   const { ReportForm } = rt.load<typeof import("../src/modules/reports/components/ReportForm")>(
     "src/modules/reports/components/ReportForm.tsx",

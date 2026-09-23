@@ -109,7 +109,7 @@ test("closed registration uses verified invitations; Google metadata cannot assi
     f.state.claims = { sub: "new-google-subject", email: "invited@fixture.invalid", email_verified: true, name: "PRIVATE REAL NAME", is_admin: true, display_name: "forged_name" };
     let flow = await f.begin();
     expect((await f.google.finishGoogleSignIn(flow.request(), "public")).headers.get("location")).toContain("signin_failed");
-    expect((await f.db.prepare("SELECT count(*) AS total FROM profiles").get())?.total).toBe(3);
+    expect((await f.db.prepare("SELECT count(*) AS total FROM profiles").get())?.total).toBe(4);
     f.env.AUTH_ALLOWED_EMAILS = "invited@fixture.invalid";
     flow = await f.begin();
     expect((await f.google.finishGoogleSignIn(flow.request(), "public")).headers.get("location")).toContain("/auth/username");
@@ -119,7 +119,7 @@ test("closed registration uses verified invitations; Google metadata cannot assi
     f.env.AUTH_ALLOWED_EMAILS = "";
     flow = await f.begin();
     expect((await f.google.finishGoogleSignIn(flow.request(), "public")).headers.get("location")).toContain("signin_failed");
-    expect((await f.db.prepare("SELECT count(*) AS total FROM profiles").get())?.total).toBe(4);
+    expect((await f.db.prepare("SELECT count(*) AS total FROM profiles").get())?.total).toBe(5);
   } finally { await f.close(); }
 });
 

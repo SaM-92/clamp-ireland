@@ -3,6 +3,7 @@ import type { LocationSummary } from "@/modules/locations/types";
 import type { TransparencyStats } from "@/modules/dashboard/types";
 import { calculateRiskScore } from "@/modules/scoring/calculateRiskScore";
 import { riskLevelFromScore } from "@/modules/scoring/riskLevel";
+import { CONTENT_LIMITS } from "@/modules/content-policy/policy";
 import type { PublicReport } from "../types";
 
 const STORAGE_KEY = "clamp-local-preview-v1";
@@ -13,7 +14,7 @@ const previewReportSchema = z.object({
   reporterType: z.enum(["victim", "neighbour", "witness"]),
   hasImage: z.boolean(),
   createdAt: z.iso.datetime(),
-  description: z.string().max(2000).default("Preview report from before notes were added."),
+  description: z.string().max(CONTENT_LIMITS.report_note).default("Preview report from before notes were added."),
   incidentDate: z.iso.date().nullable().default(null),
 });
 export type PreviewReport = z.infer<typeof previewReportSchema>;

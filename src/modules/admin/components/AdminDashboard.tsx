@@ -11,6 +11,7 @@ function OverviewCards({ overview }: { overview: AdminOverview }) {
   const cards = [
     ["Pending review", overview.pending],
     ["Published", overview.published],
+    ["Auto-published by AI", overview.autoPublished],
     ["Rejected", overview.rejected],
     ["Total reports", overview.totalReports],
     ["User profiles", overview.totalUsers],

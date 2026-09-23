@@ -45,6 +45,11 @@ export const env = {
   NODE_ENV: process.env.NODE_ENV,
   ADMIN_ALLOWED_USER_IDS: process.env.ADMIN_ALLOWED_USER_IDS ?? "",
   ADMIN_SITE_URL: process.env.ADMIN_SITE_URL ?? "",
+  // Cloudflare Turnstile protects the anonymous ("no account needed") report
+  // path from bots. The site key is not secret (it's embedded in the page);
+  // the secret key must never reach the browser.
+  TURNSTILE_SECRET_KEY: process.env.TURNSTILE_SECRET_KEY ?? "",
+  NEXT_PUBLIC_TURNSTILE_SITE_KEY: process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY ?? "",
 } as const;
 
 export const isDatabaseConfigured = Boolean(env.AZURE_SQL_SERVER && env.AZURE_SQL_DATABASE);

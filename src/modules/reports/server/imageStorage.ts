@@ -63,11 +63,8 @@ export async function deleteReportImage(path: string): Promise<void> {
   await blob(path).deleteIfExists({ abortSignal: AbortSignal.timeout(15_000) });
 }
 
-/** Callers must authorize an administrator before requesting a private read-only URL. */
-export async function getSignedImageUrl(path: string, expiresInSeconds = 600): Promise<string> {
-  if (!Number.isInteger(expiresInSeconds) || expiresInSeconds < 1 || expiresInSeconds > 600) {
-    throw new Error("Private evidence URLs must expire within ten minutes.");
-  }
+/** Shared SAS-signing core. Callers below each enforce their own expiry cap and access contract. */
+async function signBlobUrl(path: string, expiresInSeconds: number): Promise<string> {
   const evidence = blob(path);
   await evidence.getProperties({ abortSignal: AbortSignal.timeout(15_000) });
   const now = Date.now();
@@ -90,4 +87,22 @@ export async function getSignedImageUrl(path: string, expiresInSeconds = 600): P
   }, await delegation.key, env.AZURE_STORAGE_ACCOUNT_NAME).toString();
   if (!signed) throw new Error("Storage did not return a private image signature.");
   return `${evidence.url}?${signed}`;
+}
+
+/** Callers must authorize an administrator before requesting a private read-only URL. */
+export async function getSignedImageUrl(path: string, expiresInSeconds = 600): Promise<string> {
+  if (!Number.isInteger(expiresInSeconds) || expiresInSeconds < 1 || expiresInSeconds > 600) {
+    throw new Error("Private evidence URLs must expire within ten minutes.");
+  }
+  return signBlobUrl(path, expiresInSeconds);
+}
+
+/**
+ * For photos on reports the caller has already confirmed are
+ * moderation_status='published' (see dbo.reports_public) - a human moderator
+ * already judged the photo free of identifying details before approving it.
+ * Never call this for a pending/rejected report's photo.
+ */
+export async function getSignedPublishedPhotoUrl(path: string): Promise<string> {
+  return signBlobUrl(path, 3600);
 }

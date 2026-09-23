@@ -40,9 +40,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body>
         <a className="skip-link" href="#main-content">Skip to content</a>
         <header className="site-header">
-          <Link href="/" className="brand" aria-label="Clamp Transparency Signal home">
+          <Link href="/" className="brand" aria-label="clamptracker.ie home">
             <span className="brand-mark"><Icon name="pin" width="25" height="25" /></span>
-            <span>Clamp<span className="brand-subtitle">Transparency Signal</span></span>
+            <span>clamptracker<span className="brand-subtitle">.ie</span></span>
           </Link>
           <nav className="header-nav" aria-label="Main navigation">
             <Link href="/#how-it-works" className="nav-explainer">How it works</Link>

@@ -53,7 +53,9 @@ async function fixture() {
 test("cookie authentication and bounded input precede inference, upload and report creation", async () => {
   const f = await fixture();
   try {
-    expect((await f.reports.POST(new Request(publicOrigin, { method: "POST" }))).status).toBe(401);
+    // No cookie at all is a valid anonymous-tier request now - it fails on the
+    // (missing) form body, not on authentication.
+    expect((await f.reports.POST(new Request(publicOrigin, { method: "POST" }))).status).toBe(400);
     const invalidFields: Record<string, string>[] = [{ locationId: "invalid" }, { reporterType: "admin" }, { incidentDate: "2026-02-30" }];
     for (const fields of invalidFields) {
       expect((await f.reports.POST(await f.report("A factual note.", fields))).status).toBe(400);

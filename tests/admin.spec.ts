@@ -1,5 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import { adminBaseURL, authorizeAdmin } from "./helpers/admin";
+import { CONTENT_LIMITS } from "../src/modules/content-policy/policy";
 
 test.use({ baseURL: adminBaseURL });
 
@@ -90,7 +91,7 @@ test("375px review supports editing, confirmation reset, approval, rejection and
   await page.setViewportSize({ width: 375, height: 812 });
   const decisions: unknown[] = [];
   await page.route("**/api/moderation/reports", (route) => route.fulfill({ json: [
-    { ...pendingReport, description: "A".repeat(2000) },
+    { ...pendingReport, description: "A".repeat(CONTENT_LIMITS.report_note) },
     { ...pendingReport, id: locationId, description: "Second report" },
   ] }));
   await page.route(/\/api\/moderation\/reports\/[^/]+$/, (route) => {

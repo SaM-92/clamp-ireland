@@ -41,7 +41,7 @@ deployment. Shared administration navigation now includes Area summaries.
    **Approve & publish summary** atomically checks source freshness, stores
    the edited sentence and records the authenticated admin's approval.
    **Reject draft** leaves any previous still-fresh approval alone.
-6. Open location notes on the map. The compact **Nearby reports · 500 m**
+6. Open location notes on the map. The compact **Nearby summary**
    section only reads a fresh human-approved summary; opening it never
    triggers a model request. Browser-local preview explicitly requires a real
    backend and never requests summaries, even for UUID-shaped local IDs.
