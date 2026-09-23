@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { createRequire } from "node:module";
 import { runInNewContext } from "node:vm";
@@ -55,6 +55,13 @@ function runtime(overrides: Record<string, unknown> = {}, globals: Record<string
     },
     ...overrides,
   };
+  function resolveModule(base: string): string {
+    if (existsSync(base)) return base;
+    for (const extension of [".ts", ".mjs", ".js"]) {
+      if (existsSync(base + extension)) return base + extension;
+    }
+    return `${base}.ts`;
+  }
   function load<T>(file: string): T {
     const absolute = path.resolve(file);
     if (cache.has(absolute)) return cache.get(absolute) as T;
@@ -72,8 +79,10 @@ function runtime(overrides: Record<string, unknown> = {}, globals: Record<string
       require: (name: string) => {
         if (name === "server-only") return {};
         if (name in dependencies) return dependencies[name];
-        if (name.startsWith("@/")) return load(path.resolve("src", ...name.slice(2).split("/")) + ".ts");
-        if (name.startsWith(".")) return load(path.resolve(path.dirname(absolute), name) + ".ts");
+        // Relative/aliased imports may resolve to a .ts source file or, since
+        // the Azure SQL migration, a plain-ESM .mjs file (database/sql-store.mjs).
+        if (name.startsWith("@/")) return load(resolveModule(path.resolve("src", ...name.slice(2).split("/"))));
+        if (name.startsWith(".")) return load(resolveModule(path.resolve(path.dirname(absolute), name)));
         return nativeRequire(name);
       },
     });
