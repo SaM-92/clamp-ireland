@@ -73,13 +73,14 @@ var sharedSettings = [
 ]
 
 var usesPrivateRegistry = !empty(registryUsername)
+var usesAuthAllowedEmails = !empty(authAllowedEmails)
 
 var secrets = concat(
   [
     { name: 'google-client-id', value: googleClientId }
     { name: 'google-client-secret', value: googleClientSecret }
-    { name: 'auth-allowed-emails', value: authAllowedEmails }
   ],
+  usesAuthAllowedEmails ? [{ name: 'auth-allowed-emails', value: authAllowedEmails }] : [],
   kind == 'admin' ? [{ name: 'admin-accounts', value: adminAllowedUserIds }] : [],
   usesPrivateRegistry ? [{ name: 'registry-password', value: registryPassword }] : []
 )
@@ -88,8 +89,11 @@ var secretEnv = concat(
   [
     { name: 'GOOGLE_CLIENT_ID', secretRef: 'google-client-id' }
     { name: 'GOOGLE_CLIENT_SECRET', secretRef: 'google-client-secret' }
-    { name: 'AUTH_ALLOWED_EMAILS', secretRef: 'auth-allowed-emails' }
   ],
+  // Container Apps rejects secrets with an empty value, so AUTH_ALLOWED_EMAILS
+  // is only wired to the secret store when a non-empty allowlist is supplied;
+  // otherwise the app's own env.ts default (?? "") applies.
+  usesAuthAllowedEmails ? [{ name: 'AUTH_ALLOWED_EMAILS', secretRef: 'auth-allowed-emails' }] : [],
   kind == 'admin'
     ? [
         { name: 'ADMIN_ALLOWED_USER_IDS', secretRef: 'admin-accounts' }

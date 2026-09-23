@@ -49,3 +49,9 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# generated deployment artifacts (regenerated per run by scripts/deploy/deploy-infra.ps1)
+/scripts/deploy/grant-sql-users.sql
+
+# downloaded OAuth client secret files (never commit live credentials)
+client_secret*.json

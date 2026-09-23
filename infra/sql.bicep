@@ -48,7 +48,9 @@ resource database 'Microsoft.Sql/servers/databases@2023-08-01' = {
     collation: 'Latin1_General_100_BIN2_UTF8'
     maxSizeBytes: 34359738368
     minCapacity: json('0.5')
-    autoPauseDelay: 15
+    // Free Limit databases only accept the platform default auto-pause delay (60 minutes);
+    // any other explicit value is rejected at deployment time.
+    autoPauseDelay: 60
     requestedBackupStorageRedundancy: 'Local'
     useFreeLimit: true
     freeLimitExhaustionBehavior: 'AutoPause'
@@ -75,6 +77,8 @@ resource sqlFirewallRules 'Microsoft.Sql/servers/firewallRules@2023-08-01' = [fo
 }]
 
 output serverName string = server.name
-output serverFqdn string = '${server.name}.${environment().suffixes.sqlServerHostname}'
+// environment().suffixes.sqlServerHostname already includes the leading dot
+// (e.g. '.database.windows.net'), so no separator is needed here.
+output serverFqdn string = '${server.name}${environment().suffixes.sqlServerHostname}'
 output databaseName string = database.name
 output sqlServerResourceId string = server.id

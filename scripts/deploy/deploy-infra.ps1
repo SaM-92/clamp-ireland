@@ -57,7 +57,9 @@ param(
 
   [switch]$EnableAreaSummaries,
 
-  [switch]$EnableLocalAiDemo
+  [switch]$EnableLocalAiDemo,
+
+  [switch]$Force
 )
 
 Set-StrictMode -Version Latest
@@ -374,7 +376,8 @@ function Get-NormalizedIpv4List {
   )
 
   if ($null -eq $Addresses) {
-    return @()
+    Write-Output -NoEnumerate @()
+    return
   }
 
   $normalized = @(
@@ -391,7 +394,11 @@ function Get-NormalizedIpv4List {
     }
   }
 
-  return $normalized
+  # PowerShell unwraps a single-element array into a scalar when it is captured
+  # via a plain function return; -NoEnumerate keeps 1-element (and 0-element)
+  # lists as real arrays so downstream ConvertTo-Json emits a JSON array, which
+  # ARM/Bicep array-typed parameters (e.g. storage.bicep's ipRules) require.
+  Write-Output -NoEnumerate $normalized
 }
 
 function Merge-Ipv4Lists {
@@ -539,7 +546,14 @@ function Get-ContainerAppEnvironmentOutboundIpv4s {
     }
 
     if (-not $foundOutboundProperty) {
-      throw "Unable to locate outbound IP addresses on Container Apps environment '$EnvironmentName'. Checked query paths: $($queryPaths -join ', '). Inspect 'az containerapp env show -g $($script:ResourceGroupName) -n $EnvironmentName -o json' before continuing."
+      # Consumption-only Container Apps environments without VNet integration never
+      # publish outbound IPs (Azure manages a dynamic, unpublished pool in that mode).
+      # Treat "property absent" the same as "property present but empty": fall back to
+      # the operator-only allowlist below instead of aborting the whole deployment.
+      if ($attempt -eq $RetryCount) {
+        Write-Warning "Container Apps environment '$EnvironmentName' does not publish outbound IP addresses (expected for a Consumption environment without VNet integration). Checked query paths: $($queryPaths -join ', ')."
+        return @()
+      }
     }
 
     if ($attempt -lt $RetryCount) {
@@ -569,6 +583,11 @@ function Resolve-SubscriptionContext {
 
 function Confirm-MutatingRun {
   if ($WhatIf) {
+    return
+  }
+
+  if ($Force) {
+    Write-Host 'Confirmation bypassed via -Force.' -ForegroundColor Yellow
     return
   }
 
