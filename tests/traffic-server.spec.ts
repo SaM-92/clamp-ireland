@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { sqliteRuntime } from "./helpers/sqlite-runtime";
+import { sqlRuntime } from "./helpers/sql-runtime";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { createRequire } from "node:module";
@@ -141,9 +141,9 @@ test("admin traffic keeps authorization ahead of disabled status and aggregate r
 });
 
 test("repository reads a maximum 30-day UTC window and aggregates actual rows, not user records", async () => {
-  const f = sqliteRuntime();
+  const f = await sqlRuntime();
   try {
-    f.db.exec(`INSERT INTO traffic_daily VALUES
+    await f.db.exec(`INSERT INTO traffic_daily VALUES
       ('2026-09-22','/','mobile',3),('2026-09-22','/appeal','desktop',7),
       ('2026-09-21','/','tablet',2),('2026-08-23','/','mobile',100),('2026-09-23','/','mobile',100)`);
     const repository = f.load<typeof import("../src/modules/analytics/server/repository")>("src/modules/analytics/server/repository.ts");
@@ -152,29 +152,34 @@ test("repository reads a maximum 30-day UTC window and aggregates actual rows, n
       enabled: true, from: "2026-08-24", through: "2026-09-22", totalPageviews: 12, mobilePageviews: 3,
       days: [{ day: "2026-09-22", pageviews: 10, mobilePageviews: 3 }, { day: "2026-09-21", pageviews: 2, mobilePageviews: 0 }],
     });
-    f.db.prepare("DELETE FROM traffic_daily").run();
+    await f.db.prepare("DELETE FROM traffic_daily").run();
     expect(await repository.getTrafficSummary(now)).toMatchObject({ enabled: true, totalPageviews: 0, days: [] });
-    f.db.close();
-    await expect(Promise.resolve(repository.getTrafficSummary(now))).rejects.toThrow();
-  } finally { if (f.db.isOpen) f.db.close(); }
+    await f.pool.close();
+    await expect(async () => repository.getTrafficSummary(now)).rejects.toThrow();
+  } finally { await f.close(); }
 });
 
-test("standalone traffic migration enforces aggregate-only SQLite storage, UTC and prune-on-increment", async () => {
-  const f = sqliteRuntime();
+test("standalone traffic migration enforces aggregate-only Azure SQL storage, UTC and prune-on-increment", async () => {
+  const f = await sqlRuntime();
   try {
-    expect(f.db.prepare("PRAGMA table_info(traffic_daily)").all().map((row) => row.name)).toEqual(["day", "route", "viewport", "pageviews"]);
-    f.db.exec(`INSERT INTO traffic_daily VALUES (date('now','-30 days'),'/','desktop',10),(date('now','-29 days'),'/','desktop',20)`);
+    expect((await f.db.prepare(
+      "SELECT COLUMN_NAME AS name FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME='traffic_daily' AND TABLE_SCHEMA='dbo' ORDER BY ORDINAL_POSITION",
+    ).all()).map((row) => row.name)).toEqual(["day", "route", "viewport", "pageviews"]);
+    const today = new Date().toISOString().slice(0, 10);
+    const day30 = new Date(Date.now() - 30 * 86_400_000).toISOString().slice(0, 10);
+    const day29 = new Date(Date.now() - 29 * 86_400_000).toISOString().slice(0, 10);
+    await f.db.prepare("INSERT INTO traffic_daily VALUES (?,'/','desktop',10),(?,'/','desktop',20)").run(day30, day29);
     const repository = f.load<typeof import("../src/modules/analytics/server/repository")>("src/modules/analytics/server/repository.ts");
-    expect(() => f.db.prepare("INSERT INTO traffic_daily VALUES (date('now'),'/admin','mobile',1)").run()).toThrow();
+    await expect(async () => f.db.prepare("INSERT INTO traffic_daily VALUES (?,'/admin','mobile',1)").run(today)).rejects.toThrow();
     for (let n = 0; n < 12; n++) await repository.incrementTraffic({ route: "/", viewport: "mobile" });
     await repository.incrementTraffic({ route: "/appeal", viewport: "tablet" });
-    expect(f.db.prepare("SELECT route,viewport,pageviews FROM traffic_daily WHERE day=date('now') ORDER BY route").all()).toEqual([
+    expect(await f.db.prepare("SELECT route,viewport,pageviews FROM traffic_daily WHERE day=? ORDER BY route").all(today)).toEqual([
       { route: "/", viewport: "mobile", pageviews: 12 },
       { route: "/appeal", viewport: "tablet", pageviews: 1 },
     ]);
-    expect(f.db.prepare("SELECT * FROM traffic_daily WHERE day<date('now','-29 days')").all()).toHaveLength(0);
-    expect(f.db.prepare("SELECT * FROM traffic_daily WHERE day=date('now','-29 days')").all()).toHaveLength(1);
-  } finally { f.db.close(); }
+    expect(await f.db.prepare("SELECT * FROM traffic_daily WHERE day<?").all(day29)).toHaveLength(0);
+    expect(await f.db.prepare("SELECT * FROM traffic_daily WHERE day=?").all(day29)).toHaveLength(1);
+  } finally { await f.close(); }
 });
 
 test("tracker sends only route and coarse viewport, omits credentials/referrer and never retries", async () => {

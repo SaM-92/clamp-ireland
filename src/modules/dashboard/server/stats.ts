@@ -10,9 +10,10 @@ export async function getTransparencyStats(): Promise<TransparencyStats> {
   month.setUTCDate(1);
   month.setUTCHours(0, 0, 0, 0);
   const count = z.number().int().nonnegative();
+  const db = await database();
   return z.object({
     totalReports: count, reportsThisMonth: count, highRiskLocations: count, totalLocations: count,
-  }).parse(database().prepare(`SELECT
+  }).parse(await db.prepare(`SELECT
     (SELECT count(*) FROM reports_public) AS totalReports,
     (SELECT count(*) FROM reports_public WHERE created_at>=?) AS reportsThisMonth,
     (SELECT count(*) FROM locations WHERE report_count>0 AND risk_level='high') AS highRiskLocations,

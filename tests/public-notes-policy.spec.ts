@@ -1,16 +1,16 @@
 import { expect, test } from "@playwright/test";
-import { sqliteRuntime, locationId, owner } from "./helpers/sqlite-runtime";
+import { sqlRuntime, locationId, owner } from "./helpers/sql-runtime";
 
-test("SQLite public notes exclude unreviewed, rejected, removed and every private field", async () => {
-  const f = sqliteRuntime();
+test("public notes exclude unreviewed, rejected, removed and every private field", async () => {
+  const f = await sqlRuntime();
   try {
-    const published = f.report();
-    f.report({ status: "pending" });
-    f.report({ status: "rejected" });
-    const removed = f.report();
-    f.db.prepare("UPDATE reports SET is_removed=1 WHERE id=?").run(removed);
-    expect(() => f.db.prepare("UPDATE reports SET reviewed_at=NULL WHERE id=?").run(published)).toThrow();
-    const rows = f.db.prepare("SELECT * FROM reports_public").all();
+    const published = await f.report();
+    await f.report({ status: "pending" });
+    await f.report({ status: "rejected" });
+    const removed = await f.report();
+    await f.db.prepare("UPDATE reports SET is_removed=1 WHERE id=?").run(removed);
+    await expect(async () => f.db.prepare("UPDATE reports SET reviewed_at=NULL WHERE id=?").run(published)).rejects.toThrow();
+    const rows = await f.db.prepare("SELECT * FROM reports_public").all();
     expect(rows).toHaveLength(1);
     expect(rows[0].id).toBe(published);
     for (const name of ["user_id", "description_raw", "image_url", "reviewed_by", "has_image"]) expect(rows[0]).not.toHaveProperty(name);
@@ -24,5 +24,5 @@ test("SQLite public notes exclude unreviewed, rejected, removed and every privat
     });
     expect(JSON.stringify(data)).not.toContain(owner);
     expect(JSON.stringify(data)).not.toContain("PRIVATE");
-  } finally { f.db.close(); }
+  } finally { await f.close(); }
 });

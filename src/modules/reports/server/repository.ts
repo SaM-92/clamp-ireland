@@ -29,11 +29,11 @@ export async function createReport(input: CreateReportInput): Promise<SubmittedR
   const id = randomUUID();
   const createdAt = new Date().toISOString();
   try {
-    return writeTransaction((db) => {
-      if (!db.prepare("SELECT id FROM profiles WHERE id=? AND is_banned=0 AND username_policy_checked_at IS NOT NULL").get(input.userId)) {
+    return await writeTransaction(async (db) => {
+      if (!(await db.prepare("SELECT id FROM profiles WHERE id=? AND is_banned=0 AND username_policy_checked_at IS NOT NULL").get(input.userId))) {
         throw new Error("An active account with an approved username is required.");
       }
-      db.prepare(`INSERT INTO reports
+      await db.prepare(`INSERT INTO reports
         (id,location_id,user_id,reporter_type,has_image,image_url,description,description_raw,incident_date,created_at)
         VALUES (?,?,?,?,?,?,?,?,?,?)`).run(id, z.uuid().parse(input.locationId), input.userId,
         input.reporterType, Number(Boolean(input.imagePath)), input.imagePath, description,
@@ -45,7 +45,7 @@ export async function createReport(input: CreateReportInput): Promise<SubmittedR
       };
     });
   } catch (error) {
-    console.error("[Reports] SQLite insert failed", error instanceof AggregateError ? "rollback unconfirmed" : "rolled back");
+    console.error("[Reports] insert failed", error instanceof AggregateError ? "rollback unconfirmed" : "rolled back");
     throw new ReportInsertError(!(error instanceof AggregateError));
   }
 }

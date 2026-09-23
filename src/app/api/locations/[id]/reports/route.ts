@@ -9,9 +9,10 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
   if (!z.uuid().safeParse(id).success) return NextResponse.json({ error: "Invalid location." }, { status: 400 });
   if (!isDatabaseConfigured) return NextResponse.json([]);
   try {
-    const rows = database().prepare(`SELECT id,reporter_type AS reporterType,description,incident_date AS incidentDate,
-      created_at AS createdAt,agree_count,disagree_count FROM reports_public WHERE location_id=? ORDER BY created_at DESC,id DESC LIMIT 50`).all(id);
-    return NextResponse.json(rows.map((row) => z.strictObject({
+    const db = await database();
+    const rows = await db.prepare(`SELECT TOP (50) id,reporter_type AS reporterType,description,incident_date AS incidentDate,
+      created_at AS createdAt,agree_count,disagree_count FROM reports_public WHERE location_id=? ORDER BY created_at DESC,id DESC`).all(id);
+    return NextResponse.json(rows.map((row: Record<string, unknown>) => z.strictObject({
       id: z.uuid(), reporterType: z.enum(["victim", "neighbour", "witness"]), description: z.string(),
       incidentDate: z.string().nullable(), createdAt: z.string(), voteCounts: voteCountsSchema,
     }).parse({
