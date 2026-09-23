@@ -40,6 +40,8 @@ export function syntheticEnvironment(source = process.env) {
     SITE_URL: "",
     ALLOW_INDEXING: "false",
     NEXT_PUBLIC_DONATION_URL: "",
+    STRIPE_SECRET_KEY: "",
+    NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: "",
     APP_RELEASE_SHA: source.APP_RELEASE_SHA || "local",
     RELEASE_BUILD: source.RELEASE_BUILD === "true" ? "true" : "false",
   };

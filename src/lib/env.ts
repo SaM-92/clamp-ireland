@@ -27,6 +27,13 @@ export const env = {
     "https://tiles.openfreemap.org/styles/bright",
   NEXT_PUBLIC_DONATION_URL:
     process.env.NEXT_PUBLIC_DONATION_URL ?? "",
+  // Stripe powers the "Support us" checkout. The secret key is server-only,
+  // used to create hosted Checkout Sessions - card details never reach this
+  // app. The publishable key is not secret; its presence also tells the
+  // client whether to offer the interactive Stripe flow at all (same pattern
+  // as NEXT_PUBLIC_TURNSTILE_SITE_KEY below). See docs/10-support-payments.md.
+  STRIPE_SECRET_KEY: process.env.STRIPE_SECRET_KEY ?? "",
+  NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY ?? "",
   SITE_URL: process.env.SITE_URL ?? "",
   ALLOW_INDEXING: process.env.ALLOW_INDEXING === "true",
   VERCEL_ENV: process.env.VERCEL_ENV,

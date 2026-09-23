@@ -12,6 +12,7 @@ const paths = {
   info: <><circle cx="12" cy="12" r="9" /><path d="M12 11v6m0-10v.1" /></>,
   check: <path d="m5 12 4 4L19 6" />,
   search: <><circle cx="10.5" cy="10.5" r="6.5" /><path d="m16 16 5 5" /></>,
+  heart: <path d="M12 20.5s-8-4.9-8-11a4.7 4.7 0 0 1 8-3.3A4.7 4.7 0 0 1 20 9.5c0 6.1-8 11-8 11Z" />,
 } as const;
 
 export function Icon({ name, ...props }: SVGProps<SVGSVGElement> & { name: keyof typeof paths }) {
