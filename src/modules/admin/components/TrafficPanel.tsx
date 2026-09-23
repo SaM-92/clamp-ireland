@@ -44,7 +44,7 @@ export function TrafficPanel() {
       {error && <p className="form-error" role="alert">{error}</p>}
       {disabled && <>
         <p><strong>Analytics not enabled</strong></p>
-        <p className={styles.hint}>Traffic collection is off in local development and preview deployments. To opt in on production, configure SQLite and enable the server-side analytics flag.</p>
+        <p className={styles.hint}>Traffic collection is off in local development and preview deployments. To opt in on production, configure Azure SQL and enable the server-side analytics flag.</p>
       </>}
       {summary?.enabled && <>
         <p className={styles.hint}>{summary.from} to {summary.through}, UTC. Map and appeal pages only.</p>
