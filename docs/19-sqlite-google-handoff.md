@@ -1,5 +1,11 @@
 # SQLite and Google-only migration handoff
 
+> **Superseded**: persistence has since moved from embedded SQLite to Azure SQL
+> Database. See `docs/20-azure-sql-migration.md` for the current schema, CLI,
+> and environment variables. This document is kept as a historical record of
+> the SQLite-era design decisions; do not follow its `DATABASE_PATH`/SQLite CLI
+> instructions for the current codebase.
+
 ## Scope and honest status
 
 The owner approved replacing the hosted database with embedded SQLite and
