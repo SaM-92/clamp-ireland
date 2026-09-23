@@ -1,15 +1,20 @@
-# Cloud deployment remains blocked
+# Container Apps infrastructure
 
-There is no active Azure provisioning entrypoint for the SQLite application.
-`legacy-container-apps/` preserves the earlier, **retired** two-Container-Apps /
-hosted-database design for reference and firewall contract tests. Do not deploy it.
+Persistence now lives in Azure SQL Database rather than local SQLite, so the
+application is compatible with stateless Azure Container Apps. The active
+deployment entrypoint is `scripts/deploy/deploy-infra.ps1`, which deploys
+`environment.bicep`, `sql.bicep`, `storage.bicep` and `container-app.bicep`
+directly as staged, resource-group-scoped `az deployment group create` calls
+(in that order) rather than through a single subscription-scope `main.bicep` -
+SQL/Storage firewall allowlists can only be finalized after the Container Apps
+environment exists and reports its real outbound IPs, which a one-shot Bicep
+template cannot query mid-deployment.
 
-SQLite requires one persistent host and local disk shared by both application
-processes. Ephemeral Container Apps storage and shared Azure Files/SMB/NFS are
-not supported. `compose.yaml` is a local, loopback-only setup, not approval to
-provision a VM or expose ports publicly.
+`preflight/` was read-only validation only and is superseded by the modular
+Container Apps/Azure SQL templates now that `infra/sql.bicep` exists.
+`legacy-container-apps/` preserves the retired Supabase/VM-era design and
+firewall contract-test history only; do not deploy it.
 
-Before replacing the deployment hold, obtain approval for hosting cost and
-durable storage, design private Blob/inference connectivity, supply approved IPs
-at deployment time, and validate backups, restore and inside/outside access.
-See `docs/19-sqlite-google-handoff.md` and `.azure/deployment-plan.md`.
+For the staged deployment runbook, manual SQL grant step and current live-Azure
+status, see `docs/21-container-apps-deployment.md` and
+`.azure/deployment-plan.md`.

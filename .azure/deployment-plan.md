@@ -185,7 +185,8 @@ separate prerequisites for authenticated user workflows.
 - [x] Confirm Container Apps, cross-region SQL/Blob and changing-IP allowlists.
 - [x] Finish SQL free-offer and complete low-traffic cost checks.
 - [ ] Migrate application storage only after the conditions pass.
-- [ ] Prepare Container Apps infrastructure and private deployment inputs.
+- [x] Prepare Container Apps infrastructure and private deployment inputs
+  (authored; live deployment not yet run).
 - [ ] Run Azure validation, then approved deployment.
 - [ ] Verify persistence, TLS, private access and inside/outside network denial.
 
@@ -679,3 +680,15 @@ identifiers must not be committed.
 Local verification covers both builds and the real page/API gates with test
 identity transport. Real backend credentials, both approved accounts, TLS,
 domains and Azure resources remain unconfigured and require separate approval.
+
+### Infrastructure authoring - 2026-09-23
+
+- Domain `clamptracker.ie` is now registered and active at Blacknight, but no
+  DNS records have been created yet. Planned admin hostname:
+  `admin.clamptracker.ie`.
+- The initial IP-restricted test deployment will use operator IPv4
+  `98.71.6.33` for app ingress and backend firewall verification.
+- Container Apps, Azure SQL, Storage and staged deployment orchestration are
+  now documented as authored-but-not-yet-deployed infrastructure.
+- See `docs/21-container-apps-deployment.md` for the detailed deployment
+  runbook, required inputs and post-deploy SQL grant step.
