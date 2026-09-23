@@ -6,7 +6,7 @@ const headers = { "Cache-Control": "private, no-store", Vary: "Cookie, Authoriza
 export async function GET(request: Request) {
   try {
     if (!await requireAdmin(request)) return NextResponse.json({ error: "Admin access required." }, { status: 403, headers });
-    return NextResponse.json(listPublicLocations().map((row) => ({
+    return NextResponse.json((await listPublicLocations()).map((row) => ({
       id: row.id, lat: row.lat, lng: row.lng, reportCount: row.reportCount,
     })), { headers });
   } catch {
