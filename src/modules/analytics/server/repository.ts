@@ -1,14 +1,15 @@
 import "server-only";
 import { z } from "zod";
-import { createServiceRoleClient } from "@/lib/supabase/server";
+import { database, writeTransaction } from "@/lib/db/server";
 import { trafficEventSchema, trafficSummarySchema, type TrafficEvent, type TrafficSummary } from "../types";
 
 export async function incrementTraffic(event: TrafficEvent): Promise<void> {
   const { route, viewport } = trafficEventSchema.parse(event);
-  const { error } = await createServiceRoleClient().rpc("increment_traffic", {
-    p_route: route, p_viewport: viewport,
+  writeTransaction((db) => {
+    db.prepare("DELETE FROM traffic_daily WHERE day<date('now','-29 days')").run();
+    db.prepare(`INSERT INTO traffic_daily(day,route,viewport,pageviews) VALUES (date('now'),?,?,1)
+      ON CONFLICT(day,route,viewport) DO UPDATE SET pageviews=pageviews+1`).run(route, viewport);
   });
-  if (error) throw error;
 }
 
 const rowsSchema = z.array(z.object({
@@ -24,11 +25,8 @@ export async function getTrafficSummary(now = new Date()): Promise<TrafficSummar
   const start = new Date(`${through}T00:00:00Z`);
   start.setUTCDate(start.getUTCDate() - 29);
   const from = start.toISOString().slice(0, 10);
-  const { data, error } = await createServiceRoleClient()
-    .from("traffic_daily").select("day, route, viewport, pageviews")
-    .gte("day", from).lte("day", through)
-    .order("day", { ascending: false }).limit(180);
-  if (error) throw error;
+  const data = database().prepare(`SELECT day,route,viewport,pageviews FROM traffic_daily
+    WHERE day>=? AND day<=? ORDER BY day DESC LIMIT 180`).all(from, through);
   const rows = rowsSchema.parse(data);
   const days = new Map<string, { day: string; pageviews: number; mobilePageviews: number }>();
   let totalPageviews = 0;

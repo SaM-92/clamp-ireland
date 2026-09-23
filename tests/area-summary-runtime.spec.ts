@@ -41,18 +41,17 @@ function completed(output = JSON.stringify({ sentence })) {
 function runtime(overrides: Record<string, unknown> = {}, globals: Record<string, unknown> = {}) {
   const environment = {
     ENABLE_AREA_SUMMARIES: true, OPENAI_API_KEY: "mock-key-not-a-credential",
-    SUPABASE_SERVICE_ROLE_KEY: "mock-service-key",
     ADMIN_ALLOWED_USER_IDS: `${uuid},${adminId}`,
     ADMIN_SITE_URL: "http://localhost",
   };
   const logs: unknown[][] = [];
   const cache = new Map<string, unknown>();
   const dependencies: Record<string, unknown> = {
-    "@/lib/env": { env: environment, isSupabaseConfigured: true },
-    "@/lib/supabase/server": {
-      createAnonServerClient: () => { throw new Error("Unexpected database call"); },
-      createServiceRoleClient: () => { throw new Error("Unexpected database call"); },
+    "@/lib/env": { env: environment, isDatabaseConfigured: true },
+    "@/lib/db/server": { database: () => { throw new Error("Unexpected database call"); } },
+    "../server/session": {
       getUserFromRequest: async () => null,
+      eligibleAdmin: () => false,
     },
     ...overrides,
   };
@@ -207,8 +206,8 @@ test("provider timeout aborts its single request with a charge-aware error", asy
 
 test("Azure summaries use the existing deployment, v1 endpoint and server-only Azure credential", async () => {
   const rt = runtime({
-    "@/lib/env": { isSupabaseConfigured: true, env: {
-      ENABLE_AREA_SUMMARIES: true, SUPABASE_SERVICE_ROLE_KEY: "mock",
+    "@/lib/env": { isDatabaseConfigured: true, env: {
+      ENABLE_AREA_SUMMARIES: true,
       AI_PROVIDER: "azure", AZURE_OPENAI_ENDPOINT: "https://fixture.openai.azure.com/",
       AZURE_OPENAI_DEPLOYMENT: "gpt-5-mini", AZURE_OPENAI_AUTH_MODE: "api-key",
       AZURE_OPENAI_API_KEY: "synthetic-fixture-key",
@@ -237,8 +236,8 @@ test("Azure rejects non-resource endpoints and unknown authentication without se
     "https://fixture.openai.azure.com/openai/v1/", "https://user:pass@fixture.openai.azure.com/",
   ]) {
     const provider = runtime({
-      "@/lib/env": { isSupabaseConfigured: true, env: {
-        ENABLE_AREA_SUMMARIES: true, SUPABASE_SERVICE_ROLE_KEY: "mock",
+      "@/lib/env": { isDatabaseConfigured: true, env: {
+        ENABLE_AREA_SUMMARIES: true,
         AI_PROVIDER: "azure", AZURE_OPENAI_ENDPOINT: endpoint,
         AZURE_OPENAI_DEPLOYMENT: "gpt-5-mini", AZURE_OPENAI_AUTH_MODE: "api-key", AZURE_OPENAI_API_KEY: "mock",
       } },
@@ -250,8 +249,8 @@ test("Azure rejects non-resource endpoints and unknown authentication without se
 test("Entra uses managed identity in production and never falls back to a provider key", async () => {
   let credentials = 0;
   const provider = runtime({
-    "@/lib/env": { isSupabaseConfigured: true, env: {
-      ENABLE_AREA_SUMMARIES: true, SUPABASE_SERVICE_ROLE_KEY: "mock",
+    "@/lib/env": { isDatabaseConfigured: true, env: {
+      ENABLE_AREA_SUMMARIES: true,
       AI_PROVIDER: "azure", AZURE_OPENAI_ENDPOINT: "https://fixture.openai.azure.com",
       AZURE_OPENAI_DEPLOYMENT: "gpt-5-mini", AZURE_OPENAI_AUTH_MODE: "entra", NODE_ENV: "production",
     } },
@@ -281,11 +280,9 @@ test("admin routes use the real auth gate; disabled/no-key/invalid/unchecked req
   let isAdmin = false;
   const actions: unknown[][] = [];
   const rt = runtime({
-    "@/lib/supabase/server": {
+    "../server/session": {
       getUserFromRequest: async () => user,
-      createServiceRoleClient: () => ({
-        from: () => ({ select: () => ({ eq: () => ({ single: async () => ({ data: { is_admin: isAdmin, is_banned: false } }) }) }) }),
-      }),
+      eligibleAdmin: () => isAdmin,
     },
     "@/modules/area-summaries/server/service": {
       generateAreaSummaryDraft: async (...args: unknown[]) => { actions.push(args); return null; },
@@ -354,7 +351,6 @@ test("public GET has no generation dependency, no-store safe projection, honest 
   expect(reads).toBe(0);
   rt.environment.ENABLE_AREA_SUMMARIES = true;
   rt.environment.OPENAI_API_KEY = "";
-  rt.environment.SUPABASE_SERVICE_ROLE_KEY = "";
   const response = await read();
   expect(response.headers.get("cache-control")).toBe("no-store");
   expect(await response.json()).toEqual({ state: "available", summary: {
@@ -362,7 +358,7 @@ test("public GET has no generation dependency, no-store safe projection, honest 
   } });
   value = null;
   expect(await (await read()).json()).toMatchObject({ state: "none" });
-  const missing = runtime({ "@/lib/env": { env: { ENABLE_AREA_SUMMARIES: true }, isSupabaseConfigured: false } });
+  const missing = runtime({ "@/lib/env": { env: { ENABLE_AREA_SUMMARIES: true }, isDatabaseConfigured: false } });
   const missingRoute = missing.load<typeof import("../src/app/api/locations/[id]/summary/route")>(publicPath);
   expect(await (await missingRoute.GET(new Request("http://localhost"), { params: Promise.resolve({ id: uuid }) })).json())
     .toMatchObject({ state: "unconfigured" });

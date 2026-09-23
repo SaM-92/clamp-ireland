@@ -1,3 +1,4 @@
+// Historical network contract; not an active deployment entrypoint.
 @export()
 @secure()
 @sealed()

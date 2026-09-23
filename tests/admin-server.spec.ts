@@ -1,153 +1,52 @@
 import { expect, test } from "@playwright/test";
-import { readFileSync } from "node:fs";
-import path from "node:path";
-import { createRequire } from "node:module";
-import { runInNewContext } from "node:vm";
-import ts from "typescript";
-import { adminOverviewSchema } from "../src/modules/admin/types";
-import { pendingReportsSchema } from "../src/modules/moderation/types";
+import { sqliteRuntime, owner, outsider, locationId } from "./helpers/sqlite-runtime";
 
-const nativeRequire = createRequire(path.resolve("package.json"));
+test("admin overview authenticates before real SQLite counts and reports storage failure explicitly", async () => {
+  const f = sqliteRuntime();
+  try {
+    f.report({ status: "pending" });
+    const removed = f.report({ status: "pending" });
+    f.db.prepare("UPDATE reports SET is_removed=1 WHERE id=?").run(removed);
+    f.report();
+    f.report({ status: "rejected" });
+    const route = f.load<typeof import("../apps/admin/src/app/api/admin/overview/route")>("apps/admin/src/app/api/admin/overview/route.ts");
+    expect((await route.GET(f.request("/api/admin/overview", {}, outsider, "admin"))).status).toBe(403);
+    const request = f.request("/api/admin/overview", {}, owner, "admin");
+    const response = await route.GET(request);
+    expect(response.status).toBe(200);
+    expect(response.headers.get("cache-control")).toContain("no-store");
+    expect(await response.json()).toEqual({ pending: 1, published: 1, rejected: 1, totalReports: 4, totalUsers: 3 });
+    f.db.close();
+    const failure = await route.GET(request);
+    expect(failure.status).toBe(500);
+    expect(await failure.json()).toEqual({ error: expect.any(String) });
+  } finally { if (f.db.isOpen) f.db.close(); }
+});
 
-// Execute the real server modules without loading server-only into Playwright.
-// Only their external auth/database/storage dependencies are replaced.
-function loadServer<T>(file: string, dependencies: Record<string, unknown>, errors: unknown[] = []): T {
-  const commonJs = { exports: {} };
-  const code = ts.transpileModule(readFileSync(path.resolve(file), "utf8"), {
-    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020, esModuleInterop: true },
-  }).outputText;
-  runInNewContext(code, {
-    module: commonJs, exports: commonJs.exports, Request, Response, Headers, Error,
-    console: { error: (...args: unknown[]) => errors.push(args) },
-    require: (id: string) => id === "server-only" ? {} : id in dependencies ? dependencies[id] : nativeRequire(id),
+test("private photo errors block approval; successful review atomically publishes and recomputes score", async () => {
+  let missing = true;
+  const f = sqliteRuntime({
+    "@/modules/reports/server/imageStorage": { getSignedImageUrl: async () => {
+      if (missing) throw new Error("Storage unavailable");
+      return "https://private.fixture.invalid/synthetic-signed-photo";
+    } },
   });
-  return commonJs.exports as T;
-}
-
-test("overview route gates all reads through real requireAdmin and never substitutes zero on failure", async () => {
-  let user: { id: string } | null = null;
-  let admin = false;
-  let fail = false;
-  let reads = 0;
-  const errors: unknown[] = [];
-  const auth = loadServer<typeof import("../src/modules/auth/lib/requireAdmin")>(
-    "src/modules/auth/lib/requireAdmin.ts", {
-      "./adminSession": {
-        adminSessionSettings: () => ({ configured: true, ids: ["ordinary-verified-user"] }),
-        isAdminSameOrigin: () => true,
-      },
-      "@/lib/supabase/server": {
-        getUserFromRequest: async () => user,
-        createServiceRoleClient: () => ({
-          from: () => ({ select: () => ({ eq: () => ({ single: async () => ({ data: { is_admin: admin, is_banned: false } }) }) }) }),
-        }),
-      },
-    },
-  );
-  const counts = { pending: 7, published: 11, rejected: 3, totalReports: 21, totalUsers: 6 };
-  const route = loadServer<typeof import("../apps/admin/src/app/api/admin/overview/route")>(
-    "apps/admin/src/app/api/admin/overview/route.ts", {
-      "@/modules/auth/lib/requireAdmin": auth,
-      "@/modules/admin/server/overview": {
-        getAdminOverview: async () => {
-          reads++;
-          if (fail) throw new Error("database offline");
-          return counts;
-        },
-      },
-    }, errors,
-  );
-  const request = new Request("http://localhost/api/admin/overview", { headers: { Authorization: "Bearer fixture" } });
-  expect((await route.GET(request)).status).toBe(403);
-  user = { id: "ordinary-verified-user" };
-  expect((await route.GET(request)).status).toBe(403);
-  expect(reads).toBe(0);
-  admin = true;
-  const response = await route.GET(request);
-  expect(response.status).toBe(200);
-  expect(response.headers.get("cache-control")).toContain("no-store");
-  expect(response.headers.get("vary")).toContain("Authorization");
-  expect(await response.json()).toEqual(counts);
-  fail = true;
-  const failed = await route.GET(request);
-  expect(failed.status).toBe(500);
-  expect(await failed.json()).toEqual({ error: expect.any(String) });
-  expect(errors).toHaveLength(1);
-});
-
-test("overview counts all rows exactly with explicit removed-report semantics", async () => {
-  const tables: Record<string, Record<string, unknown>[]> = {
-    reports: [
-      { moderation_status: "pending", is_removed: false },
-      { moderation_status: "pending", is_removed: true },
-      { moderation_status: "published", is_removed: false },
-      { moderation_status: "published", is_removed: false },
-      { moderation_status: "published", is_removed: true },
-      { moderation_status: "rejected", is_removed: true },
-    ],
-    profiles: [{ id: "one" }, { id: "two" }, { id: "three" }],
-  };
-  let failure: "none" | "error" | "missing" = "none";
-  const server = loadServer<typeof import("../src/modules/admin/server/overview")>(
-    "src/modules/admin/server/overview.ts", {
-      "../types": { adminOverviewSchema },
-      "@/lib/supabase/server": {
-        createServiceRoleClient: () => ({
-          from: (table: string) => {
-            let rows = tables[table];
-            const query = {
-              select: (column: string, options: unknown) => {
-                expect(column).toBe("id");
-                expect(options).toEqual({ count: "exact", head: true });
-                return query;
-              },
-              eq: (key: string, value: unknown) => { rows = rows.filter((row) => row[key] === value); return query; },
-              then: (resolve: (result: unknown) => unknown) => Promise.resolve({
-                count: failure === "missing" ? null : rows.length,
-                error: failure === "error" ? new Error("count failed") : null,
-              }).then(resolve),
-            };
-            return query;
-          },
-        }),
-      },
-    },
-  );
-  expect(await server.getAdminOverview()).toEqual({ pending: 1, published: 2, rejected: 1, totalReports: 6, totalUsers: 3 });
-  failure = "error";
-  await expect(Promise.resolve(server.getAdminOverview())).rejects.toThrow("count failed");
-  failure = "missing";
-  await expect(Promise.resolve(server.getAdminOverview())).rejects.toThrow("count was not returned");
-});
-
-test("private signing failures are explicit and cannot be approved through the repository", async () => {
-  const row = {
-    id: "00000000-0000-4000-8000-000000000001",
-    location_id: "00000000-0000-4000-8000-000000000002",
-    reporter_type: "witness", description: "Test private report",
-    created_at: "2026-09-22T10:00:00+00:00", has_image: true, image_url: "private/photo.jpg",
-  };
-  let updates = 0;
-  const errors: unknown[] = [];
-  const query = {
-    select: () => query, eq: () => query,
-    order: async () => ({ data: [row], error: null }),
-    single: async () => ({ data: row, error: null }),
-    update: () => { updates++; return query; },
-  };
-  const repository = loadServer<typeof import("../src/modules/moderation/server/repository")>(
-    "src/modules/moderation/server/repository.ts", {
-      "../types": { pendingReportsSchema },
-      "@/lib/supabase/server": { createServiceRoleClient: () => ({ from: () => query }) },
-      "@/modules/reports/server/imageStorage": { getSignedImageUrl: async () => { throw new Error("Storage unavailable"); } },
-      "@/modules/scoring": { recomputeLocationScore: async () => {} },
-    }, errors,
-  );
-  const reports = await repository.listPendingReports();
-  expect(reports[0].hasImage).toBe(true);
-  expect(reports[0].imageUrl).toBeNull();
-  expect(reports[0].imageError).toContain("Approval is blocked");
-  expect(errors).toHaveLength(1);
-  await expect(Promise.resolve(repository.approveReport(row.id, "Reviewed note", "admin"))).rejects.toThrow("Storage unavailable");
-  expect(updates).toBe(0);
+  try {
+    const id = f.report({ status: "pending", photo: "private/photo.webp" });
+    const repo = f.load<typeof import("../src/modules/moderation/server/repository")>("src/modules/moderation/server/repository.ts");
+    const rows = await repo.listPendingReports();
+    expect(rows[0]).toMatchObject({ hasImage: true, imageUrl: null, imageError: expect.stringContaining("Approval is blocked") });
+    await expect(Promise.resolve(repo.approveReport(id, "Reviewed wording.", owner))).rejects.toThrow("Storage unavailable");
+    expect(f.db.prepare("SELECT moderation_status FROM reports WHERE id=?").get(id)?.moderation_status).toBe("pending");
+    missing = false;
+    await expect(Promise.resolve(repo.approveReport(id, "Reviewed wording.", outsider))).rejects.toThrow("administrator");
+    await repo.approveReport(id, "Reviewed wording.", owner);
+    expect(f.db.prepare("SELECT report_count,risk_score FROM locations WHERE id=?").get(locationId)).toMatchObject({ report_count: 1, risk_score: expect.any(Number) });
+    expect(f.db.prepare("SELECT description,description_raw FROM reports WHERE id=?").get(id)).toEqual({ description: "Reviewed wording.", description_raw: "PRIVATE ORIGINAL" });
+    await expect(Promise.resolve(repo.approveReport(id, "Repeated approval.", owner))).rejects.toThrow("pending");
+    const rejected = f.report({ status: "pending" });
+    await repo.rejectReport(rejected);
+    expect(f.db.prepare("SELECT moderation_status,is_removed FROM reports WHERE id=?").get(rejected)).toMatchObject({ moderation_status: "rejected", is_removed: 1 });
+    expect(f.db.prepare("SELECT report_count FROM locations WHERE id=?").get(locationId)?.report_count).toBe(1);
+  } finally { f.db.close(); }
 });

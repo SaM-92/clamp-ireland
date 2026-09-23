@@ -1,5 +1,5 @@
 import { expect, test } from "./helpers/ci-browser";
-import { adminBaseURL, adminUrl, authorizeAdmin } from "./helpers/admin";
+import { adminBaseURL, adminUrl, authorizeAdmin, fixtureSession } from "./helpers/admin";
 
 test("public site has neither admin links nor administrative pages/APIs, even with administrator credentials", async ({ page, request }) => {
   await page.goto("/");
@@ -8,40 +8,38 @@ test("public site has neither admin links nor administrative pages/APIs, even wi
     "/api/admin/overview", "/api/admin/traffic", "/api/admin/locations",
     "/api/admin/area-summaries", "/api/moderation/reports"];
   for (const path of paths) {
-    expect((await request.get(path, { headers: { Authorization: "Bearer owner-session", Cookie: "clamp-admin-session=owner-session" } })).status()).toBe(404);
+    expect((await request.get(path, { headers: { Cookie: `clamp-admin-session=${fixtureSession("owner-session")}` } })).status()).toBe(404);
   }
   expect((await request.post("/api/admin/area-summaries", { data: {} })).status()).toBe(404);
   expect((await request.patch("/api/moderation/reports/10000000-0000-4000-8000-000000000001", { data: { action: "reject" } })).status()).toBe(404);
 });
 
-test("only the two approved confirmed identities can receive private HTML and call admin APIs", async ({ page, request }) => {
+test("only the two approved SQLite identities can receive private HTML and call admin APIs", async ({ page, request }) => {
   for (const token of ["outsider-session", "unconfirmed-session", "expired-session"]) {
     await authorizeAdmin(page, token);
     await page.goto(adminUrl("/admin/summaries"));
     await expect(page).toHaveURL(adminUrl("/auth/sign-in"));
     await expect(page.getByRole("heading", { name: "Review nearby summaries" })).toHaveCount(0);
-    expect((await request.get(adminUrl("/api/admin/overview"), { headers: { Cookie: `clamp-admin-session=${token}` } })).status()).toBe(403);
+    expect((await request.get(adminUrl("/api/admin/overview"), { headers: { Cookie: `clamp-admin-session=${fixtureSession(token)}` } })).status()).toBe(403);
   }
   for (const token of ["owner-session", "cofounder-session"]) {
     await authorizeAdmin(page, token);
     await page.goto(adminUrl("/admin"));
     await expect(page.getByRole("heading", { name: "Community overview" })).toBeVisible();
-    const response = await request.get(adminUrl("/api/admin/overview"), { headers: { Cookie: `clamp-admin-session=${token}` } });
+    const response = await request.get(adminUrl("/api/admin/overview"), { headers: { Cookie: `clamp-admin-session=${fixtureSession(token)}` } });
     expect(response.status()).toBe(200);
     expect(response.headers()["cache-control"]).toContain("no-store");
     expect(response.headers()["x-robots-tag"]).toContain("noindex");
   }
 });
 
-test("administrator sign-in and sign-out use a private cookie and block cross-origin actions", async ({ page, request }) => {
+test("Google-only sign-in UI and database-backed logout use a private cookie and block cross-origin actions", async ({ page, request }) => {
   await page.setViewportSize({ width: 375, height: 812 });
   await page.goto(adminUrl("/auth/sign-in"));
-  await page.getByLabel("Email", { exact: true }).fill("outsider@fixture.invalid");
-  await page.getByLabel("Password", { exact: true }).fill("fixture-password");
-  await page.getByRole("button", { name: "Sign in", exact: true }).click();
-  await expect(page.getByRole("main").getByRole("alert")).toContainText("Access denied");
-  await page.getByLabel("Email", { exact: true }).fill("owner@fixture.invalid");
-  await page.getByRole("button", { name: "Sign in", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Continue with Google" })).toBeVisible();
+  await expect(page.locator('input[type="email"], input[type="password"]')).toHaveCount(0);
+  await authorizeAdmin(page, "cofounder-session");
+  await page.goto(adminUrl("/admin"));
   await expect(page.getByRole("heading", { name: "Community overview" })).toBeVisible();
   const cookies = await page.context().cookies(adminBaseURL);
   const session = cookies.find((cookie) => cookie.name === "clamp-admin-session")!;
@@ -49,7 +47,7 @@ test("administrator sign-in and sign-out use a private cookie and block cross-or
   expect(session.sameSite).toBe("Strict");
   expect(await page.evaluate(() => document.cookie)).not.toContain("clamp-admin-session");
   expect(await page.evaluate(() => Object.keys(localStorage))).toEqual([]);
-  const headers = { Cookie: "clamp-admin-session=owner-session", Origin: "https://public.fixture.invalid" };
+  const headers = { Cookie: `clamp-admin-session=${fixtureSession("cofounder-session")}`, Origin: "https://public.fixture.invalid" };
   expect((await request.post(adminUrl("/api/auth/sign-out"), { headers })).status()).toBe(403);
   expect((await request.patch(adminUrl("/api/moderation/reports/10000000-0000-4000-8000-000000000001"), {
     headers, data: { action: "reject" },

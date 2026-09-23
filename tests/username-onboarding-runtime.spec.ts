@@ -15,7 +15,7 @@ const settle = () => new Promise<void>((resolve) => setImmediate(resolve));
 function fixture(edit = false) {
   const state = {
     identity: { username: "river_walker", needsOnboarding: false } as unknown,
-    saveResponse: undefined as unknown, status: 200, hang: "" as "" | "token" | "fetch" | "json",
+    saveResponse: undefined as unknown, status: 200, hang: "" as "" | "fetch" | "json",
     calls: [] as { method: string; signal: AbortSignal; body?: string }[],
     redirects: [] as string[], refreshes: 0,
   };
@@ -44,7 +44,6 @@ function fixture(edit = false) {
     },
     "next/navigation": { useRouter: () => router },
     "next/link": "a",
-    "./supabaseAuth": { getAccessToken: async () => state.hang === "token" ? new Promise(() => {}) : "synthetic-token" },
   }, {
     AbortController, AbortSignal,
     setTimeout: (callback: () => void, delay: number) => { timers.set(++timerId, { callback, delay }); return timerId; },
@@ -187,8 +186,8 @@ test("malformed or mismatched save responses never become success or expose arbi
   f.unmount();
 });
 
-test("load deadline bounds token lookup, transport and JSON parsing without a later redirect", async () => {
-  for (const hang of ["token", "fetch", "json"] as const) {
+test("load deadline bounds cookie transport and JSON parsing without a later redirect", async () => {
+  for (const hang of ["fetch", "json"] as const) {
     const f = fixture();
     f.state.hang = hang;
     f.render();
@@ -198,7 +197,7 @@ test("load deadline bounds token lookup, transport and JSON parsing without a la
     await settle();
     expect(f.markup()).toContain("Loading your username timed out");
     expect(f.state.redirects).toEqual([]);
-    if (hang !== "token") expect(f.state.calls[0].signal.aborted).toBe(true);
+    expect(f.state.calls[0].signal.aborted).toBe(true);
     expect(f.timers.size).toBe(0);
     f.unmount();
   }
@@ -240,9 +239,7 @@ test("only exact edit=1 enables edit mode and the account menu links to it expli
     "@/modules/seo/policy": { PRIVATE_ROBOTS: { index: false, follow: false } },
     react: { ...React, useState: (value: unknown) => [value === false ? true : value, () => {}], useEffect: () => {} },
     "next/link": "a",
-    "@/lib/env": { isSupabaseConfigured: false },
-    "@/lib/supabase/client": {},
-    "../lib/supabaseAuth": {},
+    "../lib/session": {},
   });
   const { default: Page } = rt.load<typeof import("../src/app/auth/username/page")>("src/app/auth/username/page.tsx");
   for (const edit of [undefined, "1", "true", ["1"]]) {

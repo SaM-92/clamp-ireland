@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { getUserFromRequest } from "@/lib/supabase/server";
+import { getUserFromRequest } from "@/modules/auth/server/session";
 import { setReportVote } from "@/modules/votes/server/repository";
 import { voteError, voteFailure, voteResponseHeaders } from "@/modules/votes/server/http";
 import { voteInputSchema } from "@/modules/votes/types";
@@ -8,7 +8,7 @@ import { voteInputSchema } from "@/modules/votes/types";
 export async function PUT(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const user = await getUserFromRequest(request);
-    if (!user) return voteError("Sign in with a confirmed account to vote.", 401);
+    if (!user) return voteError("Sign in with Google to vote.", 401);
     const { id } = await params;
     if (!z.uuid().safeParse(id).success) return voteError("Invalid report ID.", 400);
     let body: unknown;

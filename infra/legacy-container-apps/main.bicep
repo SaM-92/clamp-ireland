@@ -1,3 +1,4 @@
+// Retired: incompatible with durable SQLite. Do not deploy.
 targetScope = 'subscription'
 import { ClientNetwork } from './network-types.bicep'
 

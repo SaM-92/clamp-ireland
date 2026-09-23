@@ -15,6 +15,10 @@
 /playwright-report/
 /test-results/
 /.local/
+*.sqlite
+*.sqlite-*
+*.db
+*.db-*
 /public/vendor/maplibre/
 
 # next.js

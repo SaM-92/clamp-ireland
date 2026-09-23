@@ -1,3 +1,4 @@
+// Retired with the Container Apps / hosted database topology.
 import { ClientNetwork } from './network-types.bicep'
 param name string
 @allowed(['public', 'admin'])

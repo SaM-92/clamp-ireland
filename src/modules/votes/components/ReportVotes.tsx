@@ -18,7 +18,7 @@ export type ReportVotesProps = {
 
 export function ReportVotes(props: ReportVotesProps) {
   const identity = props.preview ? "preview"
-    : props.viewer.status === "ready" ? props.viewer.accessToken : props.viewer.status;
+    : props.viewer.status;
   return <VoteControls key={`${props.reportId}:${identity}`} {...props} />;
 }
 
@@ -81,8 +81,8 @@ function VoteControls({ reportId, counts, preview, viewer, onChange, onRetry }: 
     let saved: VoteSnapshot;
     try {
       if (preview) saved = savePreviewVote(reportId, nextVote);
-      else if (viewer?.status === "ready") saved = await saveReportVote(reportId, nextVote, viewer.accessToken);
-      else throw new Error("Sign in with a confirmed account to vote.");
+      else if (viewer?.status === "ready") saved = await saveReportVote(reportId, nextVote);
+      else throw new Error("Sign in with Google to vote.");
     } catch (cause) {
       if (active.current) {
         setError(cause instanceof Error ? cause.message : "Could not save feedback. Please try again.");
@@ -117,7 +117,7 @@ function VoteControls({ reportId, counts, preview, viewer, onChange, onRetry }: 
       </div>
       <p className={styles.hint}>Community feedback only, not proof. Votes do not change the risk signal, report count or summary sources.</p>
       {preview && <p className={styles.hint}>Local preview: one simulated voter in this browser. No vote is submitted.</p>}
-      {signedOut && <p className={styles.hint}><a href="/auth/sign-in">Sign in to vote</a> with a confirmed account.</p>}
+      {signedOut && <p className={styles.hint}><a href="/auth/sign-in">Sign in to vote</a> using Google.</p>}
       {(error || readError) && <p role="alert" className={styles.error}>{error ?? readError}</p>}
       {((preview && error) || (onRetry && (readError || authNeeded))) && (
         <button type="button" className={styles.retry} disabled={busy} onClick={() => preview ? setRetry((value) => value + 1) : onRetry?.()}>

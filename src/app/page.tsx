@@ -1,6 +1,6 @@
 import { HomeClient } from "./HomeClient";
 import { getTransparencyStats } from "@/modules/dashboard/server/stats";
-import { isSupabaseConfigured } from "@/lib/env";
+import { isDatabaseConfigured } from "@/lib/env";
 import { seoPolicy } from "@/modules/seo/config";
 import { publicPageMetadata, websiteStructuredData } from "@/modules/seo/policy";
 import { localAiDemoEnabled } from "@/modules/ai-demo/server/guard";
@@ -14,7 +14,7 @@ export const metadata = publicPageMetadata(
 
 // Avoid attempting static prerendering against a live database at build
 // time — stats are fetched fresh per request (and degrade gracefully to
-// zeros if Supabase isn't configured yet, see modules/dashboard/server/stats.ts).
+// zeros if SQLite isn't configured yet, see modules/dashboard/server/stats.ts).
 export const dynamic = "force-dynamic";
 
 export default async function Home() {
@@ -28,7 +28,7 @@ export default async function Home() {
           dangerouslySetInnerHTML={{ __html: JSON.stringify(website).replace(/</g, "\\u003c") }}
         />
       )}
-      <HomeClient initialStats={stats} preview={process.env.NODE_ENV === "development" && !isSupabaseConfigured} aiDemo={localAiDemoEnabled()} />
+      <HomeClient initialStats={stats} preview={process.env.NODE_ENV === "development" && !isDatabaseConfigured} aiDemo={localAiDemoEnabled()} />
     </>
   );
 }

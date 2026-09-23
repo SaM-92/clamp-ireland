@@ -1,4 +1,6 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+const token = readFileSync("/tmp/upload-session-token", "utf8").trim();
 
 for (const [size, expectedStatus] of [[50 * 1024 * 1024, 429], [50 * 1024 * 1024 + 1, 413]]) {
   const form = new FormData();
@@ -7,7 +9,8 @@ for (const [size, expectedStatus] of [[50 * 1024 * 1024, 429], [50 * 1024 * 1024
   form.set("description", "Synthetic upload boundary check.");
   form.set("image", new File([new Uint8Array(size)], "synthetic.png", { type: "image/png" }));
   const response = await fetch("http://127.0.0.1:3000/api/reports", {
-    method: "POST", body: form, headers: { Authorization: "Bearer photo-fixture-session" },
+    method: "POST", body: form,
+    headers: { Cookie: `clamp-public-session=${token}`, Origin: "http://127.0.0.1:3000" },
     signal: AbortSignal.timeout(60_000),
   });
   const body = await response.json();

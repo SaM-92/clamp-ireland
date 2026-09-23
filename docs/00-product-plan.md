@@ -4,6 +4,10 @@ Status: DRAFT v1 — agreed decisions baked in, implementation underway.
 Owner: @SaM-92 (personal project)
 Last updated: 2026-09-22
 
+Implementation update: the active backend is now embedded SQLite with Google-only
+sign-in, superseding historical Supabase/password decisions in this plan. See
+`19-sqlite-google-handoff.md` and the README for current setup and deployment holds.
+
 ## 0. Positioning / framing
 The product is deliberately framed as a **transparency signal**, not an
 accusation tool: users report their own factual experience at a *location*

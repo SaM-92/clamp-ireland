@@ -11,6 +11,13 @@ const config: NextConfig = {
   env: buildReleaseEnvironment(),
   turbopack: { root },
   outputFileTracingRoot: root,
+  outputFileTracingIncludes: {
+    "/*": [
+      "../../node_modules/geographiclib-geodesic/LICENSE.txt",
+      "../../node_modules/openid-client/LICENSE.md",
+      "../../node_modules/oauth4webapi/LICENSE.md",
+    ],
+  },
   async headers() {
     return [{
       source: "/:path*",

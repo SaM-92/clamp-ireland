@@ -1,29 +1,13 @@
 import "server-only";
-import { createServiceRoleClient } from "@/lib/supabase/server";
+import { database } from "@/lib/db/server";
 import { adminOverviewSchema, type AdminOverview } from "../types";
 
-/** Only call after requireAdmin. Counts include no report text or user identities. */
+/** Only call after requireAdmin. No identities or report text leave this projection. */
 export async function getAdminOverview(): Promise<AdminOverview> {
-  const supabase = createServiceRoleClient();
-  const results = await Promise.all([
-    supabase.from("reports").select("id", { count: "exact", head: true })
-      .eq("moderation_status", "pending").eq("is_removed", false),
-    supabase.from("reports").select("id", { count: "exact", head: true })
-      .eq("moderation_status", "published").eq("is_removed", false),
-    supabase.from("reports").select("id", { count: "exact", head: true })
-      .eq("moderation_status", "rejected"),
-    supabase.from("reports").select("id", { count: "exact", head: true }),
-    supabase.from("profiles").select("id", { count: "exact", head: true }),
-  ]);
-  for (const result of results) {
-    if (result.error) throw result.error;
-    if (result.count === null) throw new Error("Admin overview count was not returned.");
-  }
-  return adminOverviewSchema.parse({
-    pending: results[0].count,
-    published: results[1].count,
-    rejected: results[2].count,
-    totalReports: results[3].count,
-    totalUsers: results[4].count,
-  });
+  return adminOverviewSchema.parse(database().prepare(`SELECT
+    (SELECT count(*) FROM reports WHERE moderation_status='pending' AND is_removed=0) AS pending,
+    (SELECT count(*) FROM reports WHERE moderation_status='published' AND is_removed=0) AS published,
+    (SELECT count(*) FROM reports WHERE moderation_status='rejected') AS rejected,
+    (SELECT count(*) FROM reports) AS totalReports,
+    (SELECT count(*) FROM profiles) AS totalUsers`).get());
 }

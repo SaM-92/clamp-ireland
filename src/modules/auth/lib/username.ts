@@ -1,7 +1,6 @@
 "use client";
 
 import { z } from "zod";
-import { getAccessToken } from "./supabaseAuth";
 
 const identitySchema = z.discriminatedUnion("needsOnboarding", [
   z.object({ username: z.null(), needsOnboarding: z.literal(true) }).strict(),
@@ -33,12 +32,10 @@ export async function requestUsername({ username, signal }: { username?: string;
 
   async function request() {
     controller.signal.throwIfAborted();
-    const token = await getAccessToken();
-    controller.signal.throwIfAborted();
-    if (!token) throw new UsernameRequestError("Sign in with a confirmed account first.", 401);
     const response = await fetch("/api/profile/username", {
       method: saving ? "PUT" : "GET",
-      headers: { Authorization: `Bearer ${token}`, ...(saving ? { "Content-Type": "application/json" } : {}) },
+      headers: saving ? { "Content-Type": "application/json" } : {},
+      credentials: "same-origin",
       body: saving ? JSON.stringify({ username }) : undefined,
       cache: "no-store", signal: controller.signal,
     });

@@ -11,20 +11,19 @@ export async function fetchLocations(): Promise<LocationSummary[]> {
 
 /**
  * Finds an existing pin within ~30m of (lat, lng) or creates a new one.
- * Requires a signed-in user's access token — see docs/00-product-plan.md,
+ * Requires a signed-in user's server session — see docs/00-product-plan.md,
  * "Anti-bot / anti-abuse approach".
  */
 export async function ensureLocation(
   lat: number,
-  lng: number,
-  accessToken: string
+  lng: number
 ): Promise<LocationSummary> {
   const res = await fetch("/api/locations", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      Authorization: `Bearer ${accessToken}`,
     },
+    credentials: "same-origin",
     body: JSON.stringify({ lat, lng }),
   });
   if (!res.ok) {

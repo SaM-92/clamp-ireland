@@ -75,6 +75,7 @@ jobs:
           name: production-smoke-${{ github.run_id }}-${{ github.run_attempt }}
           path: |
             test-results/
+            !test-results/**/*.sqlite*
             playwright-report/
           if-no-files-found: warn
           retention-days: 14

@@ -1,5 +1,5 @@
 export function requireNetworkIsolationReady() {
   throw new Error(
-    "Deployment blocked: all-endpoint IP isolation is incomplete. Hosted Supabase HTTPS APIs are not covered by its database IP restrictions. Resolve the private backend and network design before enabling cloud deployment."
+    "Deployment blocked: all-endpoint IP isolation is incomplete and a durable single-host SQLite deployment is not approved. The old Container Apps topology is retired. Approve persistent local storage, hosting cost and private Blob connectivity before enabling cloud deployment."
   );
 }

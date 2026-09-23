@@ -1,20 +1,14 @@
 import "server-only";
-import { createServiceRoleClient } from "@/lib/supabase/server";
+import { z } from "zod";
+import { database, writeTransaction } from "@/lib/db/server";
 import { getSignedImageUrl } from "@/modules/reports/server/imageStorage";
 import { recomputeLocationScore } from "@/modules/scoring";
 import { pendingReportsSchema, type PendingReport } from "../types";
 
 /** Text and photos awaiting human review. */
 export async function listPendingReports(): Promise<PendingReport[]> {
-  const supabase = createServiceRoleClient();
-  const { data, error } = await supabase
-    .from("reports")
-    .select("id, location_id, reporter_type, description, has_image, image_url, created_at")
-    .eq("moderation_status", "pending")
-    .eq("is_removed", false)
-    .order("created_at", { ascending: true });
-
-  if (error) throw error;
+  const data = database().prepare(`SELECT id,location_id,reporter_type,description,has_image,image_url,created_at
+    FROM reports WHERE moderation_status='pending' AND is_removed=0 ORDER BY created_at,id`).all();
 
   const reports = await Promise.all(
     (data ?? []).map(async (row) => {
@@ -45,43 +39,33 @@ export async function listPendingReports(): Promise<PendingReport[]> {
 
 /** Publish the reviewed wording without changing the private original. */
 export async function approveReport(reportId: string, description: string, reviewerId: string) {
-  const supabase = createServiceRoleClient();
-  const { data: evidence, error: evidenceError } = await supabase
-    .from("reports").select("has_image, image_url")
-    .eq("id", reportId).eq("moderation_status", "pending").eq("is_removed", false).single();
-  if (evidenceError) throw evidenceError;
+  const evidence = database().prepare(`SELECT has_image,image_url FROM reports
+    WHERE id=? AND moderation_status='pending' AND is_removed=0`).get(reportId);
+  if (!evidence) throw new Error("Only an existing pending report can be approved.");
   if (evidence.has_image || evidence.image_url) {
     if (!evidence.image_url) throw new Error("Cannot approve a report with missing photo evidence.");
     await getSignedImageUrl(evidence.image_url as string, 600);
   }
-  const { data, error } = await supabase
-    .from("reports")
-    .update({
-      moderation_status: "published", description,
-      reviewed_at: new Date().toISOString(), reviewed_by: reviewerId,
-    })
-    .eq("id", reportId)
-    .eq("moderation_status", "pending")
-    .eq("is_removed", false)
-    .select()
-    .single();
-  if (error) throw error;
-  await recomputeLocationScore(data.location_id as string);
-  return data;
+  return writeTransaction((db) => {
+    if (!db.prepare("SELECT id FROM profiles WHERE id=? AND is_admin=1 AND is_banned=0").get(reviewerId)) {
+      throw new Error("An active human administrator is required.");
+    }
+    const data = db.prepare(`UPDATE reports SET moderation_status='published',description=?,reviewed_at=?,reviewed_by=?
+      WHERE id=? AND moderation_status='pending' AND is_removed=0 AND image_url IS ?
+      RETURNING id,location_id`).get(description, new Date().toISOString(), reviewerId, reportId, evidence.image_url);
+    if (!data) throw new Error("Report or evidence changed. Reload before approving.");
+    recomputeLocationScore(z.uuid().parse(data.location_id), db);
+    return data;
+  });
 }
 
 /** Rejects and soft-removes a report that shouldn't be public. */
 export async function rejectReport(reportId: string) {
-  const supabase = createServiceRoleClient();
-  const { data, error } = await supabase
-    .from("reports")
-    .update({ moderation_status: "rejected", is_removed: true })
-    .eq("id", reportId)
-    .eq("moderation_status", "pending")
-    .eq("is_removed", false)
-    .select()
-    .single();
-  if (error) throw error;
-  await recomputeLocationScore(data.location_id as string);
-  return data;
+  return writeTransaction((db) => {
+    const data = db.prepare(`UPDATE reports SET moderation_status='rejected',is_removed=1
+      WHERE id=? AND moderation_status='pending' AND is_removed=0 RETURNING id,location_id`).get(reportId);
+    if (!data) throw new Error("Only an existing pending report can be rejected.");
+    recomputeLocationScore(z.uuid().parse(data.location_id), db);
+    return data;
+  });
 }

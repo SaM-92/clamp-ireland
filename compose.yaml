@@ -1,0 +1,38 @@
+# Local single-host operation only. This is not an approved Azure deployment.
+services:
+  public:
+    build:
+      context: .
+      target: public
+      args:
+        RELEASE_SHA: ${APP_RELEASE_SHA:?Set APP_RELEASE_SHA to the full source commit}
+        BUILD_PROFILE: ci
+    env_file: .env.local
+    environment:
+      DATABASE_PATH: /data/clamp.sqlite
+      AUTH_PUBLIC_ORIGIN: http://localhost:3001
+      ALLOW_PUBLIC_SIGNUP: "false"
+      ENABLE_LOCAL_AI_DEMO: "false"
+    ports: ["127.0.0.1:3001:3000"]
+    volumes: ["sqlite-data:/data"]
+    mem_limit: 2g
+    cpus: 1
+  admin:
+    build:
+      context: .
+      target: admin
+      args:
+        RELEASE_SHA: ${APP_RELEASE_SHA:?Set APP_RELEASE_SHA to the full source commit}
+        BUILD_PROFILE: ci
+    env_file: apps/admin/.env.local
+    environment:
+      DATABASE_PATH: /data/clamp.sqlite
+      ADMIN_SITE_URL: http://localhost:3003
+      ENABLE_LOCAL_AI_DEMO: "false"
+    ports: ["127.0.0.1:3003:3000"]
+    volumes: ["sqlite-data:/data"]
+    mem_limit: 512m
+    cpus: 0.25
+volumes:
+  sqlite-data:
+    driver: local

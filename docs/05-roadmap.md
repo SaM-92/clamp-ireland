@@ -1,4 +1,23 @@
-# Roadmap / Phased Backlog (v8 — private deployment preparation and bounded photos)
+# Roadmap / Phased Backlog (v9 - SQLite and Google-only)
+
+## Current migration status (supersedes historical backend/auth items below)
+
+- [x] Replace Supabase/PostgreSQL runtime with one embedded SQLite database.
+- [x] Preserve checked pseudonyms, moderation, scoring, votes, quotas and summaries.
+- [x] Google-only OIDC and hashed, audience-separated server sessions; no SMTP.
+- [x] Real SQLite persistence, online backup, geodesic boundary and concurrency tests.
+- [x] Remove backend build secrets and archive the incompatible cloud templates.
+- [x] Document same-host local disk and local Docker named-volume operation.
+- [x] Complete final container/browser verification and record results in handoff 19.
+- [x] Initialize the empty local SQLite database and verify backup/restore.
+- [ ] Configure real Google web client, invited accounts and two administrators.
+- [ ] Approve durable hosting/cost, backup operations and private connectivity.
+- [ ] Apply approved IPs privately at deployment time and validate access.
+- [ ] Deploy the development-only application; **nothing is deployed yet**.
+
+The Supabase/password/migration entries below describe completed historical work,
+not setup instructions or an additional backend to create. Read
+`19-sqlite-google-handoff.md`, the README and current data model first.
 
 Depends on: 00-product-plan.md, 01-architecture.md, 02-data-model.md,
 03-scoring-algorithm.md, 04-legal-considerations.md.

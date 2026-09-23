@@ -10,6 +10,9 @@
 !THIRD_PARTY_NOTICES.md
 !src/
 !src/**
+!database/
+!database/*.mjs
+!database/*.mts
 !public/
 !public/**
 !scripts/
@@ -32,6 +35,9 @@
 **/*secret*
 **/*.pem
 **/*.key
+**/*.sqlite*
+**/*.db
+**/*.db-*
 **/*.pfx
 **/*.p12
 **/*.jks

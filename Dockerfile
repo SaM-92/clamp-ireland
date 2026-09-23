@@ -8,21 +8,22 @@ FROM dependencies AS source
 COPY . .
 ARG RELEASE_SHA
 ARG BUILD_PROFILE=ci
-ARG REGISTRATION_ENABLED=false
-ENV NEXT_TELEMETRY_DISABLED=1 RELEASE_BUILD=true APP_RELEASE_SHA=$RELEASE_SHA BUILD_PROFILE=$BUILD_PROFILE NEXT_PUBLIC_REGISTRATION_ENABLED=$REGISTRATION_ENABLED
+ENV NEXT_TELEMETRY_DISABLED=1 RELEASE_BUILD=true APP_RELEASE_SHA=$RELEASE_SHA BUILD_PROFILE=$BUILD_PROFILE
 
 FROM source AS public-build
 RUN node scripts/prepare-map-assets.mjs
-RUN --mount=type=secret,id=public_supabase_url --mount=type=secret,id=public_supabase_anon_key \
-  node scripts/release/build-container.mjs public
+RUN node scripts/release/build-container.mjs public
 
 FROM source AS admin-build
-RUN --mount=type=secret,id=public_supabase_url --mount=type=secret,id=public_supabase_anon_key \
-  node scripts/release/build-container.mjs admin
+RUN node scripts/release/build-container.mjs admin
 
 FROM node:24-bookworm-slim AS runtime
 WORKDIR /app
+RUN mkdir -p /data && chown node:node /data && chmod 700 /data
 COPY --from=source --chown=node:node /app/THIRD_PARTY_NOTICES.md ./THIRD_PARTY_NOTICES.md
+COPY --from=dependencies /app/node_modules/geographiclib-geodesic/LICENSE.txt ./third-party-licenses/geographiclib-geodesic.txt
+COPY --from=dependencies /app/node_modules/openid-client/LICENSE.md ./third-party-licenses/openid-client.md
+COPY --from=dependencies /app/node_modules/oauth4webapi/LICENSE.md ./third-party-licenses/oauth4webapi.md
 ENV NODE_ENV=production NEXT_TELEMETRY_DISABLED=1 HOSTNAME=0.0.0.0 PORT=3000
 USER node
 EXPOSE 3000

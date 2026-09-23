@@ -1,3 +1,4 @@
+// Historical module. Never change shared inference roles implicitly.
 param accountName string
 param principalIds array
 

@@ -1,4 +1,8 @@
 import { execFileSync } from "node:child_process";
+import { randomBytes } from "node:crypto";
+import { mkdtempSync, writeFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import path from "node:path";
 import { disabledAiEnvironment } from "../ci/environment.mjs";
 
 const docker = (...args) => execFileSync("docker", args, { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }).trim();
@@ -6,17 +10,24 @@ for (const app of ["public", "admin"]) {
   const image = process.env[`${app.toUpperCase()}_IMAGE`];
   if (!image) throw new Error(`Missing ${app} image.`);
   let id;
+  let fixtureDirectory;
   try {
     const environment = { ...disabledAiEnvironment, ENABLE_AREA_SUMMARIES: "false", ENABLE_TRAFFIC_ANALYTICS: "false" };
     if (app === "public") Object.assign(environment, {
-      NEXT_PUBLIC_SUPABASE_URL: "http://127.0.0.1:1",
-      NEXT_PUBLIC_SUPABASE_ANON_KEY: "fixture-anon", SUPABASE_SERVICE_ROLE_KEY: "fixture-service",
+      DATABASE_PATH: "/tmp/clamp-upload-fixture.sqlite", AUTH_PUBLIC_ORIGIN: "http://127.0.0.1:3000",
       NODE_OPTIONS: "--import=/tmp/upload-fixture.mjs --max-old-space-size=256",
     });
     id = docker("create", "--network", "none", "--cpus", app === "public" ? "1" : "0.25",
       "--memory", app === "public" ? "2g" : "512m",
       ...Object.entries(environment).flatMap(([key, value]) => ["--env", `${key}=${value}`]), image);
-    if (app === "public") docker("cp", "scripts/photos/upload-fixture.mjs", `${id}:/tmp/upload-fixture.mjs`);
+    if (app === "public") {
+      fixtureDirectory = mkdtempSync(path.join(tmpdir(), "clamp-container-fixture-"));
+      const tokenPath = path.join(fixtureDirectory, "upload-session-token");
+      writeFileSync(tokenPath, randomBytes(32).toString("base64url"), { mode: 0o644 });
+      docker("cp", tokenPath, `${id}:/tmp/upload-session-token`);
+      docker("cp", "scripts/photos/upload-fixture.mjs", `${id}:/tmp/upload-fixture.mjs`);
+      docker("cp", "database/schema.mjs", `${id}:/tmp/sqlite-schema.mjs`);
+    }
     docker("start", id);
     docker("cp", "scripts/release/smoke.mjs", `${id}:/tmp/smoke.mjs`);
     docker("cp", "scripts/release/metadata.mjs", `${id}:/tmp/metadata.mjs`);
@@ -30,8 +41,12 @@ for (const app of ["public", "admin"]) {
       docker("cp", "scripts/photos/upload-smoke.mjs", `${id}:/tmp/upload-smoke.mjs`);
       console.log(docker("exec", id, "node", "/tmp/upload-smoke.mjs"));
     }
+  } catch (error) {
+    if (id) console.error(docker("logs", id).slice(-6000));
+    throw error;
   } finally {
     if (id) docker("rm", "--force", id);
+    if (fixtureDirectory) rmSync(fixtureDirectory, { recursive: true, force: true });
   }
 }
 console.log("Both independent container runtimes passed read-only smoke.");

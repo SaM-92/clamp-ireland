@@ -20,4 +20,4 @@ export type VoteViewer =
   | { status: "loading" }
   | { status: "signed-out" }
   | { status: "error"; message: string }
-  | { status: "ready"; accessToken: string; vote: ReportVote | null };
+  | { status: "ready"; vote: ReportVote | null };

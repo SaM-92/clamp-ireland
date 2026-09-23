@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { PGlite } from "@electric-sql/pglite";
+import { sqliteRuntime } from "./helpers/sqlite-runtime";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { createRequire } from "node:module";
@@ -25,16 +25,14 @@ function loadServer<T>(file: string, dependencies: Record<string, unknown>, glob
   return commonJs.exports as T;
 }
 
-test("traffic collection requires explicit opt-in, production, all Supabase configuration, and no Vercel preview", () => {
+test("traffic collection requires explicit opt-in, production, SQLite and no Vercel preview", () => {
   for (const enabled of [false, true]) {
     for (const nodeEnv of ["development", "test", "production", undefined]) {
-      for (const supabaseConfigured of [false, true]) {
-        for (const serviceRoleConfigured of [false, true]) {
+      for (const databaseConfigured of [false, true]) {
           for (const vercelEnv of [undefined, "preview", "development", "production"]) {
-            expect(trafficCollectionAllowed({ enabled, nodeEnv, supabaseConfigured, serviceRoleConfigured, vercelEnv }))
-              .toBe(enabled && nodeEnv === "production" && supabaseConfigured && serviceRoleConfigured &&
+            expect(trafficCollectionAllowed({ enabled, nodeEnv, databaseConfigured, vercelEnv }))
+              .toBe(enabled && nodeEnv === "production" && databaseConfigured &&
                 (vercelEnv === undefined || vercelEnv === "production"));
-          }
         }
       }
     }
@@ -143,85 +141,40 @@ test("admin traffic keeps authorization ahead of disabled status and aggregate r
 });
 
 test("repository reads a maximum 30-day UTC window and aggregates actual rows, not user records", async () => {
-  const calls: unknown[] = [];
-  let data: unknown = [
-    { day: "2026-09-22", route: "/", viewport: "mobile", pageviews: "3" },
-    { day: "2026-09-22", route: "/appeal", viewport: "desktop", pageviews: "7" },
-    { day: "2026-09-21", route: "/", viewport: "tablet", pageviews: "2" },
-  ];
-  const query = {
-    select: (fields: string) => { calls.push(["select", fields]); return query; },
-    gte: (field: string, value: string) => { calls.push(["gte", field, value]); return query; },
-    lte: (field: string, value: string) => { calls.push(["lte", field, value]); return query; },
-    order: () => query,
-    limit: async (limit: number) => { calls.push(["limit", limit]); return { data, error: null }; },
-  };
-  const repository = loadServer<typeof import("../src/modules/analytics/server/repository")>(
-    "src/modules/analytics/server/repository.ts", {
-      "../types": trafficTypes,
-      "@/lib/supabase/server": { createServiceRoleClient: () => ({
-        from: (table: string) => { calls.push(["from", table]); return query; },
-        rpc: async (name: string, values: unknown) => { calls.push(["rpc", name, values]); return { error: null }; },
-      }) },
-    },
-  );
-  const now = new Date("2026-09-22T23:59:00Z");
-  expect(await repository.getTrafficSummary(now)).toEqual({
-    enabled: true, from: "2026-08-24", through: "2026-09-22", totalPageviews: 12, mobilePageviews: 3,
-    days: [
-      { day: "2026-09-22", pageviews: 10, mobilePageviews: 3 },
-      { day: "2026-09-21", pageviews: 2, mobilePageviews: 0 },
-    ],
-  });
-  expect(calls).toEqual([
-    ["from", "traffic_daily"], ["select", "day, route, viewport, pageviews"],
-    ["gte", "day", "2026-08-24"], ["lte", "day", "2026-09-22"], ["limit", 180],
-  ]);
-  await repository.incrementTraffic({ route: "/appeal", viewport: "tablet" });
-  expect(calls.at(-1)).toEqual(["rpc", "increment_traffic", { p_route: "/appeal", p_viewport: "tablet" }]);
-  data = [];
-  expect(await repository.getTrafficSummary(now)).toMatchObject({ enabled: true, totalPageviews: 0, days: [] });
-  data = null;
-  await expect(Promise.resolve(repository.getTrafficSummary(now))).rejects.toThrow();
+  const f = sqliteRuntime();
+  try {
+    f.db.exec(`INSERT INTO traffic_daily VALUES
+      ('2026-09-22','/','mobile',3),('2026-09-22','/appeal','desktop',7),
+      ('2026-09-21','/','tablet',2),('2026-08-23','/','mobile',100),('2026-09-23','/','mobile',100)`);
+    const repository = f.load<typeof import("../src/modules/analytics/server/repository")>("src/modules/analytics/server/repository.ts");
+    const now = new Date("2026-09-22T23:59:00Z");
+    expect(await repository.getTrafficSummary(now)).toEqual({
+      enabled: true, from: "2026-08-24", through: "2026-09-22", totalPageviews: 12, mobilePageviews: 3,
+      days: [{ day: "2026-09-22", pageviews: 10, mobilePageviews: 3 }, { day: "2026-09-21", pageviews: 2, mobilePageviews: 0 }],
+    });
+    f.db.prepare("DELETE FROM traffic_daily").run();
+    expect(await repository.getTrafficSummary(now)).toMatchObject({ enabled: true, totalPageviews: 0, days: [] });
+    f.db.close();
+    await expect(Promise.resolve(repository.getTrafficSummary(now))).rejects.toThrow();
+  } finally { if (f.db.isOpen) f.db.close(); }
 });
 
-test("standalone traffic migration enforces aggregate-only storage, service-only RPC, UTC and prune-on-increment", async () => {
-  const db = new PGlite();
+test("standalone traffic migration enforces aggregate-only SQLite storage, UTC and prune-on-increment", async () => {
+  const f = sqliteRuntime();
   try {
-    await db.exec("create role anon; create role authenticated; create role service_role bypassrls;");
-    await db.exec(readFileSync(path.resolve("supabase", "migrations", "0003_aggregate_traffic.sql"), "utf8"));
-    const columns = await db.query<{ column_name: string }>("select column_name from information_schema.columns where table_name='traffic_daily' order by ordinal_position");
-    expect(columns.rows.map((row) => row.column_name)).toEqual(["day", "route", "viewport", "pageviews"]);
-    expect((await db.query<{ relrowsecurity: boolean }>("select relrowsecurity from pg_class where relname='traffic_daily'")).rows[0].relrowsecurity).toBe(true);
-    for (const role of ["anon", "authenticated"]) {
-      await db.exec(`set role ${role}`);
-      await expect(db.query("select * from public.traffic_daily")).rejects.toThrow();
-      await expect(db.query("select public.increment_traffic('/', 'mobile')")).rejects.toThrow();
-      await expect(db.query("insert into public.traffic_daily values (current_date, '/', 'mobile', 1)")).rejects.toThrow();
-      await db.exec("reset role");
-    }
-    await db.exec(`
-      insert into public.traffic_daily values
-        ((statement_timestamp() at time zone 'UTC')::date - 91, '/', 'desktop', 10),
-        ((statement_timestamp() at time zone 'UTC')::date - 90, '/', 'desktop', 20);
-      set time zone 'Pacific/Kiritimati';
-      set role service_role;
-    `);
-    await expect(db.query("insert into public.traffic_daily values (current_date, '/', 'tablet', 1)")).rejects.toThrow();
-    await expect(db.query("select public.increment_traffic('/admin', 'mobile')")).rejects.toThrow();
-    expect((await db.query("select * from public.traffic_daily")).rows).toHaveLength(2);
-    await Promise.all(Array.from({ length: 12 }, () => db.query("select public.increment_traffic('/', 'mobile')")));
-    await db.query("select public.increment_traffic('/appeal', 'tablet')");
-    const rows = await db.query<{ route: string; viewport: string; pageviews: number }>(
-      "select route, viewport, pageviews::int from public.traffic_daily where day=(statement_timestamp() at time zone 'UTC')::date order by route",
-    );
-    expect(rows.rows).toEqual([
+    expect(f.db.prepare("PRAGMA table_info(traffic_daily)").all().map((row) => row.name)).toEqual(["day", "route", "viewport", "pageviews"]);
+    f.db.exec(`INSERT INTO traffic_daily VALUES (date('now','-30 days'),'/','desktop',10),(date('now','-29 days'),'/','desktop',20)`);
+    const repository = f.load<typeof import("../src/modules/analytics/server/repository")>("src/modules/analytics/server/repository.ts");
+    expect(() => f.db.prepare("INSERT INTO traffic_daily VALUES (date('now'),'/admin','mobile',1)").run()).toThrow();
+    for (let n = 0; n < 12; n++) await repository.incrementTraffic({ route: "/", viewport: "mobile" });
+    await repository.incrementTraffic({ route: "/appeal", viewport: "tablet" });
+    expect(f.db.prepare("SELECT route,viewport,pageviews FROM traffic_daily WHERE day=date('now') ORDER BY route").all()).toEqual([
       { route: "/", viewport: "mobile", pageviews: 12 },
       { route: "/appeal", viewport: "tablet", pageviews: 1 },
     ]);
-    expect((await db.query("select * from public.traffic_daily where day < (statement_timestamp() at time zone 'UTC')::date - 90")).rows).toHaveLength(0);
-    expect((await db.query("select * from public.traffic_daily where day = (statement_timestamp() at time zone 'UTC')::date - 90")).rows).toHaveLength(1);
-  } finally { await db.close(); }
+    expect(f.db.prepare("SELECT * FROM traffic_daily WHERE day<date('now','-29 days')").all()).toHaveLength(0);
+    expect(f.db.prepare("SELECT * FROM traffic_daily WHERE day=date('now','-29 days')").all()).toHaveLength(1);
+  } finally { f.db.close(); }
 });
 
 test("tracker sends only route and coarse viewport, omits credentials/referrer and never retries", async () => {
@@ -296,7 +249,6 @@ test("traffic table renders real daily and mobile-sized counts without 375px pag
   const component = loadServer<typeof import("../src/modules/admin/components/TrafficPanel")>(
     "src/modules/admin/components/TrafficPanel.tsx", {
       react: { useState: () => [state.shift(), () => {}], useEffect: () => {} },
-      "@/modules/auth/lib/supabaseAuth": { getAccessToken: async () => null },
       "@/modules/analytics/types": trafficTypes,
       "./TrafficPanel.module.css": styles,
     },

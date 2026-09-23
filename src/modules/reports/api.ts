@@ -8,7 +8,6 @@ export interface SubmitReportArgs {
   description: string;
   incidentDate: string;
   image: File | null;
-  accessToken: string;
 }
 
 export async function submitReport(args: SubmitReportArgs): Promise<SubmittedReport> {
@@ -21,7 +20,7 @@ export async function submitReport(args: SubmitReportArgs): Promise<SubmittedRep
 
   const res = await fetch("/api/reports", {
     method: "POST",
-    headers: { Authorization: `Bearer ${args.accessToken}` },
+    credentials: "same-origin",
     body: formData,
   });
   if (!res.ok) {

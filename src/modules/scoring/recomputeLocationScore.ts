@@ -1,47 +1,20 @@
 import "server-only";
-import { createServiceRoleClient } from "@/lib/supabase/server";
-import { calculateRiskScore, type ScorableReport } from "./calculateRiskScore";
+import { z } from "zod";
+import type { DatabaseSync } from "node:sqlite";
+import { database } from "@/lib/db/server";
+import { calculateRiskScore } from "./calculateRiskScore";
 import { riskLevelFromScore } from "./riskLevel";
-import type { ReporterType } from "@/modules/reports/types";
 
-/**
- * Recomputes and persists a location's cached risk_score/risk_level from its
- * currently published, non-removed reports. Call this after any report is
- * published or a moderation decision changes what counts — see
- * docs/02-data-model.md for why this is cached rather than computed on
- * every read.
- */
-export async function recomputeLocationScore(locationId: string): Promise<void> {
-  const supabase = createServiceRoleClient();
-
-  const { data, error } = await supabase
-    .from("reports")
-    .select("reporter_type, has_image, created_at")
-    .eq("location_id", locationId)
-    .eq("moderation_status", "published")
-    .not("reviewed_at", "is", null)
-    .eq("is_removed", false);
-
-  if (error) throw error;
-
-  const scorable: ScorableReport[] = (data ?? []).map((row) => ({
-    reporterType: row.reporter_type as ReporterType,
-    hasImage: row.has_image as boolean,
-    createdAt: new Date(row.created_at as string),
-  }));
-
-  const riskScore = calculateRiskScore(scorable);
-  const riskLevel = riskLevelFromScore(riskScore);
-
-  const { error: updateError } = await supabase
-    .from("locations")
-    .update({
-      risk_score: riskScore,
-      risk_level: riskLevel,
-      report_count: scorable.length,
-      updated_at: new Date().toISOString(),
-    })
-    .eq("id", locationId);
-
-  if (updateError) throw updateError;
+/** Pass the caller's transaction so publication, invalidation and counts commit together. */
+export function recomputeLocationScore(locationId: string, db: DatabaseSync = database()): void {
+  const rows = z.array(z.object({
+    reporter_type: z.enum(["victim", "neighbour", "witness"]),
+    has_image: z.union([z.literal(0), z.literal(1)]), created_at: z.string(),
+  })).parse(db.prepare(`SELECT reporter_type,has_image,created_at FROM reports
+    WHERE location_id=? AND moderation_status='published' AND reviewed_at IS NOT NULL AND is_removed=0`).all(locationId));
+  const score = calculateRiskScore(rows.map((row) => ({
+    reporterType: row.reporter_type, hasImage: row.has_image === 1, createdAt: new Date(row.created_at),
+  })));
+  db.prepare("UPDATE locations SET risk_score=?,risk_level=?,report_count=?,updated_at=? WHERE id=?")
+    .run(score, riskLevelFromScore(score), rows.length, new Date().toISOString(), locationId);
 }

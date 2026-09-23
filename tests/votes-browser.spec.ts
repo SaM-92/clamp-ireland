@@ -16,7 +16,7 @@ declare global {
 }
 const id = "10000000-0000-4000-8000-000000000001";
 const counts = { agreeCount: 3, disagreeCount: 2 };
-const ready: ReportVotesProps = { reportId: id, counts, viewer: { status: "ready", accessToken: "fixture-token", vote: null } };
+const ready: ReportVotesProps = { reportId: id, counts, viewer: { status: "ready", vote: null } };
 const preview: ReportVotesProps = { reportId: id, counts: { agreeCount: 0, disagreeCount: 0 }, preview: true };
 let script: string;
 let css: string;
@@ -73,9 +73,7 @@ test.beforeAll(async ({}, info) => {
     },
     externals: {
       "./ReportVotes.module.css": "window.voteStyles",
-      "@/modules/auth/lib/supabaseAuth": "window.voteAuth",
-      "@/lib/supabase/client": "window.voteSupabase",
-      "@/lib/env": "window.voteEnvironment",
+      "@/modules/auth/lib/session": "window.voteAuth",
     },
     module: { rules: [{ test: /\.tsx?$/, exclude: /node_modules/, use: { loader } }] },
   }, (error: Error | null, stats?: { hasErrors(): boolean; toString(): string }) => {
@@ -98,12 +96,13 @@ async function mount(page: Page, props: ReportVotesProps = ready) {
     window.voteToken = "fixture-token";
     Object.assign(window, {
       voteStyles: { votes: "votes", buttons: "buttons", hint: "hint", error: "error", retry: "retry" },
-      voteEnvironment: { isSupabaseConfigured: true },
-      voteAuth: { getAccessToken: async () => window.voteToken },
-      voteSupabase: { createBrowserClient: () => ({ auth: { onAuthStateChange: (callback: () => void) => {
-        window.addEventListener("vote-test-auth", callback);
-        return { data: { subscription: { unsubscribe: () => window.removeEventListener("vote-test-auth", callback) } } };
-      } } }) },
+      voteAuth: {
+        getSession: async () => ({ configured: true, signedIn: Boolean(window.voteToken) }),
+        subscribeAuth: (callback: () => void) => {
+          window.addEventListener("vote-test-auth", callback);
+          return () => window.removeEventListener("vote-test-auth", callback);
+        },
+      },
     });
   });
   await page.addStyleTag({ content: css });
@@ -118,7 +117,7 @@ test("vote HTTP endpoints require sign-in and mark every response private", asyn
   ]) {
     expect(response.status()).toBe(401);
     expect(response.headers()["cache-control"]).toBe("private, no-store");
-    expect(response.headers()["vary"].toLowerCase()).toContain("authorization");
+    expect(response.headers()["vary"].toLowerCase()).toContain("cookie");
   }
 });
 
@@ -200,9 +199,10 @@ test("private controls show failures, disable while busy, switch/remove and prom
   await page.route("**/api/report-votes/*", async (route) => {
     const body = route.request().postDataJSON();
     bodies.push(body);
-    expect(route.request().headers()["authorization"]).toBe("Bearer fixture-token");
+    expect(route.request().headers()["authorization"]).toBeUndefined();
+    expect(route.request().headers()["origin"]).toBe("http://votes.test");
     if (hold) await new Promise<void>((resolve) => { release = resolve; });
-    if (status !== 200) return route.fulfill({ status, json: { error: status === 401 ? "Sign in with a confirmed account to vote." : "Feedback is unavailable. Please try again." } });
+    if (status !== 200) return route.fulfill({ status, json: { error: status === 401 ? "Sign in with Google to vote." : "Feedback is unavailable. Please try again." } });
     selected = body.vote;
     return route.fulfill({ json: { reportId: id, vote: selected, agreeCount: 3 + (selected === "agree" ? 1 : 0), disagreeCount: 2 + (selected === "disagree" ? 1 : 0) } });
   });

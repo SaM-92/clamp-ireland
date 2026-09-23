@@ -159,7 +159,7 @@ export function AdminSummaryWorkspace({ initialSetup }: { initialSetup: SummaryS
   return <div className={styles.workspace}>
     <section className={styles.card} aria-label="Summary setup">
       <p>{setup.message}</p>
-      <p className="field-hint">Setup: enable ENABLE_AREA_SUMMARIES, configure Supabase and the server-side AI provider, apply migrations 0004 and 0007, then sign in with an approved administrator account. There is no local-data or unauthenticated preview.</p>
+      <p className="field-hint">Setup: enable ENABLE_AREA_SUMMARIES, configure SQLite and the server-side AI provider, then sign in with an approved administrator account. There is no local-data or unauthenticated preview.</p>
       <p>Every call uses gpt-5-mini: at most 200 approved notes, 48,000 UTF-8 source bytes, 96,000 instruction/input bytes and 1,024 output tokens. One request, 30-second provider timeout, no automatic retries. Charges may apply even after timeout. Limits are not a fixed euro cost or an account-wide spending cap.</p>
       <button className="button button-surface" disabled={busy} onClick={() => setRevision((value) => value + 1)}>Reload workspace</button>
       <p className="field-hint">Reloading discards unsaved edits and checks current sources.</p>

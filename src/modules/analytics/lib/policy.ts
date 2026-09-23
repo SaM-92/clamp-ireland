@@ -1,11 +1,10 @@
 export function trafficCollectionAllowed(config: {
   enabled: boolean;
   nodeEnv: string | undefined;
-  supabaseConfigured: boolean;
-  serviceRoleConfigured: boolean;
+  databaseConfigured: boolean;
   vercelEnv: string | undefined;
 }) {
   return config.enabled && config.nodeEnv === "production" &&
-    config.supabaseConfigured && config.serviceRoleConfigured &&
+    config.databaseConfigured &&
     (config.vercelEnv === undefined || config.vercelEnv === "production");
 }

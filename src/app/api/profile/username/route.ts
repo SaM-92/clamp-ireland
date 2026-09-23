@@ -1,12 +1,12 @@
 import { NextResponse } from "next/server";
-import { getUserFromRequest } from "@/lib/supabase/server";
+import { getUserFromRequest } from "@/modules/auth/server/session";
 import { getPublicIdentity, ProfileError, savePublicIdentity } from "@/modules/auth/server/profile";
 import { ContentPolicyError, POLICY_UNAVAILABLE_MESSAGE, validateContent } from "@/modules/content-policy/policy";
 import { checkContentPolicy } from "@/modules/content-policy/server/check";
 import { consumeContentPolicyAttempt } from "@/modules/content-policy/server/rateLimit";
 import { readBoundedJson } from "@/lib/server/readBoundedJson";
 
-const headers = { "Cache-Control": "private, no-store", Vary: "Authorization" };
+const headers = { "Cache-Control": "private, no-store", Vary: "Cookie" };
 
 function failure(error: unknown) {
   if (error instanceof ContentPolicyError || error instanceof ProfileError) {
@@ -22,7 +22,7 @@ function failure(error: unknown) {
 export async function GET(request: Request) {
   try {
     const user = await getUserFromRequest(request);
-    if (!user) return NextResponse.json({ error: "Sign in with a confirmed account to choose a username." }, { status: 401, headers });
+    if (!user) return NextResponse.json({ error: "Sign in with Google to choose a username." }, { status: 401, headers });
     return NextResponse.json(await getPublicIdentity(user.id), { headers });
   } catch (error) {
     return failure(error);
@@ -32,7 +32,7 @@ export async function GET(request: Request) {
 export async function PUT(request: Request) {
   try {
     const user = await getUserFromRequest(request);
-    if (!user) return NextResponse.json({ error: "Sign in with a confirmed account to choose a username." }, { status: 401, headers });
+    if (!user) return NextResponse.json({ error: "Sign in with Google to choose a username." }, { status: 401, headers });
     let body: unknown;
     try {
       body = await readBoundedJson(request, 256, new Error("Invalid username JSON"));

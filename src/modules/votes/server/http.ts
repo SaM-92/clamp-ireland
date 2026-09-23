@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { VoteAccessError, VoteUnavailableError } from "./repository";
 
-export const voteResponseHeaders = { "Cache-Control": "private, no-store", Vary: "Authorization" };
+export const voteResponseHeaders = { "Cache-Control": "private, no-store", Vary: "Cookie" };
 
 export function voteError(message: string, status: number) {
   return NextResponse.json({ error: message }, { status, headers: voteResponseHeaders });

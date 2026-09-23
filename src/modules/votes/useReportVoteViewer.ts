@@ -1,16 +1,14 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { getAccessToken } from "@/modules/auth/lib/supabaseAuth";
-import { createBrowserClient } from "@/lib/supabase/client";
-import { isSupabaseConfigured } from "@/lib/env";
+import { getSession, subscribeAuth } from "@/modules/auth/lib/session";
 import { fetchOwnReportVotes, VoteHttpError } from "./api";
 import type { ReportVote, VoteSnapshot, VoteViewer } from "./types";
 
 type Batch =
   | { key: string; status: "loading" | "signed-out" }
   | { key: string; status: "error"; message: string }
-  | { key: string; status: "ready"; accessToken: string; votes: Record<string, ReportVote | null> };
+  | { key: string; status: "ready"; votes: Record<string, ReportVote | null> };
 
 export function useReportVoteViewer(reportIds: string[], preview: boolean) {
   const key = reportIds.join(",");
@@ -19,13 +17,12 @@ export function useReportVoteViewer(reportIds: string[], preview: boolean) {
   const authRevision = useRef(0);
 
   useEffect(() => {
-    if (preview || !isSupabaseConfigured) return;
-    const { data } = createBrowserClient().auth.onAuthStateChange(() => {
+    if (preview) return;
+    return subscribeAuth(() => {
       authRevision.current += 1;
       setBatch({ key: "", status: "loading" });
       setRevision((value) => value + 1);
     });
-    return () => data.subscription.unsubscribe();
   }, [preview]);
 
   useEffect(() => {
@@ -36,15 +33,15 @@ export function useReportVoteViewer(reportIds: string[], preview: boolean) {
     async function load() {
       setBatch({ key, status: "loading" });
       try {
-        const accessToken = await getAccessToken();
+        const session = await getSession(controller.signal);
         if (cancelled()) return;
-        if (!accessToken) {
+        if (!session.signedIn) {
           setBatch({ key, status: "signed-out" });
           return;
         }
-        const votes = await fetchOwnReportVotes(key.split(","), accessToken, controller.signal);
+        const votes = await fetchOwnReportVotes(key.split(","), controller.signal);
         if (!cancelled()) setBatch({
-          key, status: "ready", accessToken,
+          key, status: "ready",
           votes: Object.fromEntries(votes.map((row) => [row.reportId, row.vote])),
         });
       } catch (error) {
@@ -61,7 +58,7 @@ export function useReportVoteViewer(reportIds: string[], preview: boolean) {
     if (batch.key !== key) return { status: "loading" };
     if (batch.status === "ready") {
       if (!Object.hasOwn(batch.votes, reportId)) return { status: "error", message: "This note is no longer available for voting. Reload notes." };
-      return { status: "ready", accessToken: batch.accessToken, vote: batch.votes[reportId] };
+      return { status: "ready", vote: batch.votes[reportId] };
     }
     return batch.status === "error" ? { status: "error", message: batch.message } : { status: batch.status };
   }

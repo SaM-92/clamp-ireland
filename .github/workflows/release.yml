@@ -86,13 +86,6 @@ jobs:
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '24'
-      - name: Validate public-only build inputs
-        env:
-          PUBLIC_SUPABASE_URL: ${{ secrets.PUBLIC_SUPABASE_URL }}
-          PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.PUBLIC_SUPABASE_ANON_KEY }}
-        run: |
-          test -n "$PUBLIC_SUPABASE_URL" || { echo "::error::Missing release environment PUBLIC_SUPABASE_URL"; exit 1; }
-          test -n "$PUBLIC_SUPABASE_ANON_KEY" || { echo "::error::Missing release environment PUBLIC_SUPABASE_ANON_KEY"; exit 1; }
       - id: images
         run: echo "repository=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_OUTPUT"
       - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
@@ -120,10 +113,6 @@ jobs:
           build-args: |
             RELEASE_SHA=${{ needs.resolve.outputs.sha }}
             BUILD_PROFILE=production
-            REGISTRATION_ENABLED=false
-          secrets: |
-            public_supabase_url=${{ secrets.PUBLIC_SUPABASE_URL }}
-            public_supabase_anon_key=${{ secrets.PUBLIC_SUPABASE_ANON_KEY }}
       - id: admin
         uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
         env:
@@ -143,15 +132,13 @@ jobs:
           build-args: |
             RELEASE_SHA=${{ needs.resolve.outputs.sha }}
             BUILD_PROFILE=production
-            REGISTRATION_ENABLED=false
-          secrets: |
-            public_supabase_url=${{ secrets.PUBLIC_SUPABASE_URL }}
-            public_supabase_anon_key=${{ secrets.PUBLIC_SUPABASE_ANON_KEY }}
       - id: smoke
         env:
           PUBLIC_IMAGE: ${{ steps.images.outputs.repository }}/public@${{ steps.public.outputs.digest }}
           ADMIN_IMAGE: ${{ steps.images.outputs.repository }}/admin@${{ steps.admin.outputs.digest }}
-        run: node scripts/release/container-smoke.mjs
+        run: |
+          node scripts/release/container-smoke.mjs
+          node scripts/sqlite/container-persistence-smoke.mjs
       - name: Publish versioned notes and immutable manifest
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

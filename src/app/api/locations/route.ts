@@ -1,58 +1,26 @@
 import { NextResponse } from "next/server";
-import { createAnonServerClient, createServiceRoleClient, getUserFromRequest } from "@/lib/supabase/server";
-import { isSupabaseConfigured } from "@/lib/env";
-import type { LocationSummary } from "@/modules/locations/types";
+import { z } from "zod";
+import { getUserFromRequest } from "@/modules/auth/server/session";
+import { isDatabaseConfigured } from "@/lib/env";
+import { findOrCreateLocation, listPublicLocations } from "@/modules/locations/server/repository";
 
 export async function GET() {
-  if (!isSupabaseConfigured) return NextResponse.json([]);
-
-  const supabase = createAnonServerClient();
-  const { data, error } = await supabase.from("locations_public").select("*").gt("report_count", 0);
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  if (!isDatabaseConfigured) return NextResponse.json([]);
+  try { return NextResponse.json(listPublicLocations()); }
+  catch {
+    console.error("[Locations] public read failed");
+    return NextResponse.json({ error: "Could not load reported locations." }, { status: 503 });
   }
-
-  const locations: LocationSummary[] = (data ?? []).map((row) => ({
-    id: row.id,
-    lat: row.lat,
-    lng: row.lng,
-    riskScore: row.risk_score,
-    riskLevel: row.risk_level,
-    reportCount: row.report_count,
-  }));
-  return NextResponse.json(locations);
 }
-
 export async function POST(request: Request) {
-  const user = await getUserFromRequest(request);
-  if (!user) {
-    return NextResponse.json({ error: "Sign in required to add a location." }, { status: 401 });
+  try {
+    if (!await getUserFromRequest(request)) return NextResponse.json({ error: "Sign in required to add a location." }, { status: 401 });
+    const body = z.strictObject({ lat: z.number().min(-90).max(90), lng: z.number().min(-180).max(180) }).safeParse(await request.json());
+    if (!body.success) return NextResponse.json({ error: "Supply valid latitude and longitude." }, { status: 400 });
+    return NextResponse.json(findOrCreateLocation(body.data.lat, body.data.lng), { headers: { "Cache-Control": "private, no-store" } });
+  } catch (error) {
+    if (error instanceof SyntaxError) return NextResponse.json({ error: "Invalid request body." }, { status: 400 });
+    console.error("[Locations] write failed");
+    return NextResponse.json({ error: "Could not save the location." }, { status: 503 });
   }
-
-  const body = await request.json();
-  const { lat, lng } = body as { lat: unknown; lng: unknown };
-  if (typeof lat !== "number" || typeof lng !== "number") {
-    return NextResponse.json({ error: "lat/lng must be numbers" }, { status: 400 });
-  }
-
-  const supabase = createServiceRoleClient();
-  // find_or_create_location (see supabase/migrations/0001_init.sql) dedupes
-  // pins within ~30m so repeated reports at the same spot share one marker.
-  const { data, error } = await supabase.rpc("find_or_create_location", {
-    p_lat: lat,
-    p_lng: lng,
-  });
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
-  }
-
-  const location = Array.isArray(data) ? data[0] : data;
-  return NextResponse.json({
-    id: location.id,
-    lat,
-    lng,
-    riskScore: location.risk_score,
-    riskLevel: location.risk_level,
-    reportCount: location.report_count,
-  } satisfies LocationSummary);
 }

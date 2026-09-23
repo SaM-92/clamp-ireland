@@ -2,9 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { isSupabaseConfigured } from "@/lib/env";
-import { createBrowserClient } from "@/lib/supabase/client";
-import { signOut } from "../lib/supabaseAuth";
+import { getSession, signOut, subscribeAuth } from "../lib/session";
 
 export function AccountMenu() {
   const [signedIn, setSignedIn] = useState(false);
@@ -12,13 +10,16 @@ export function AccountMenu() {
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    if (!isSupabaseConfigured) return;
     let active = true;
-    const client = createBrowserClient();
-    const { data: { subscription } } = client.auth.onAuthStateChange((_event, session) => {
-      if (active) setSignedIn(Boolean(session));
-    });
-    return () => { active = false; subscription.unsubscribe(); };
+    const controller = new AbortController();
+    const refresh = () => {
+      void getSession(controller.signal).then((session) => {
+        if (active) { setSignedIn(session.signedIn); setError(null); }
+      }).catch(() => { if (active) setError("Could not verify your session."); });
+    };
+    refresh();
+    const unsubscribe = subscribeAuth(refresh);
+    return () => { active = false; controller.abort(); unsubscribe(); };
   }, []);
 
   async function handleSignOut() {

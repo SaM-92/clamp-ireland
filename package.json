@@ -12,18 +12,20 @@
     "build:all": "npm run build && npm run build:admin",
     "start": "next start",
     "start:admin": "next start apps/admin --port 3003",
+    "db": "node --env-file-if-exists=.env.local scripts/database.mjs",
     "lint": "eslint",
     "test:e2e": "playwright test",
     "test:unit": "node scripts/ci/run.mjs unit",
     "test:sql": "node scripts/ci/run.mjs sql",
     "test:smoke": "node scripts/ci/run.mjs smoke",
     "test:release": "node --test scripts/release/*.test.mjs",
-    "test:infra": "node -e \"require('fs').mkdirSync('test-results',{recursive:true})\" && az bicep build --file infra/main.bicep --outfile test-results/infra.json && node --test scripts/infra/*.test.mjs"
+    "test:infra": "node -e \"require('fs').mkdirSync('test-results',{recursive:true})\" && az bicep build --file infra/legacy-container-apps/main.bicep --outfile test-results/infra.json && node --test scripts/infra/*.test.mjs"
   },
   "dependencies": {
     "@azure/identity": "^4.13.3",
     "@azure/storage-blob": "^12.33.0",
-    "@supabase/supabase-js": "^2.116.0",
+    "geographiclib-geodesic": "^2.2.0",
+    "openid-client": "^6.8.8",
     "maplibre-gl": "^6.9.1",
     "heic-decode": "^2.1.0",
     "next": "16.3.5",
@@ -34,10 +36,9 @@
     "zod": "^4.6.5"
   },
   "devDependencies": {
-    "@electric-sql/pglite": "^0.5.8",
     "@playwright/test": "^1.55.0",
     "@tailwindcss/postcss": "^4",
-    "@types/node": "^20",
+    "@types/node": "^24.13.5",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",

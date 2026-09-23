@@ -24,10 +24,10 @@ async function readResponse(response: Response): Promise<unknown> {
   return body;
 }
 
-export async function fetchOwnReportVotes(reportIds: string[], accessToken: string, signal?: AbortSignal): Promise<OwnVote[]> {
+export async function fetchOwnReportVotes(reportIds: string[], signal?: AbortSignal): Promise<OwnVote[]> {
   reportIdsSchema.parse(reportIds);
   const response = await fetch(`/api/report-votes?${new URLSearchParams({ reportIds: reportIds.join(",") })}`, {
-    headers: { Authorization: `Bearer ${accessToken}` }, cache: "no-store", signal,
+    credentials: "same-origin", cache: "no-store", signal,
   });
   const { votes } = ownVotesResponseSchema.parse(await readResponse(response));
   if (votes.some((row) => !reportIds.includes(row.reportId)) || new Set(votes.map((row) => row.reportId)).size !== votes.length) {
@@ -36,11 +36,11 @@ export async function fetchOwnReportVotes(reportIds: string[], accessToken: stri
   return votes;
 }
 
-export async function saveReportVote(reportId: string, vote: ReportVote | null, accessToken: string): Promise<VoteSnapshot> {
+export async function saveReportVote(reportId: string, vote: ReportVote | null): Promise<VoteSnapshot> {
   z.uuid().parse(reportId);
   voteInputSchema.parse({ vote });
   const response = await fetch(`/api/report-votes/${reportId}`, {
-    method: "PUT", headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+    method: "PUT", headers: { "Content-Type": "application/json" }, credentials: "same-origin",
     cache: "no-store", body: JSON.stringify({ vote }),
   });
   const result = voteSnapshotSchema.parse(await readResponse(response));

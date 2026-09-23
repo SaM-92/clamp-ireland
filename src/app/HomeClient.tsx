@@ -8,7 +8,7 @@ import { ReportDialog, type ReportFormValues } from "@/modules/reports/component
 import { TransparencySignal } from "@/modules/dashboard/components/TransparencySignal";
 import { fetchLocations, ensureLocation } from "@/modules/locations/api";
 import { submitReport } from "@/modules/reports/api";
-import { getAccessToken } from "@/modules/auth/lib/supabaseAuth";
+import { getSession } from "@/modules/auth/lib/session";
 import { getPreviewNotes, loadPreviewReports, savePreviewReports, summarizePreviewReports, type PreviewReport } from "@/modules/reports/lib/previewReports";
 import type { LocationSummary } from "@/modules/locations/types";
 import type { TransparencyStats } from "@/modules/dashboard/types";
@@ -109,10 +109,9 @@ export function HomeClient({ initialStats, preview, aiDemo = false }: { initialS
       setMessage("Preview report saved on this browser only, with simulated approval. Notes stay local; photos are not stored or uploaded.");
       return;
     }
-    const accessToken = await getAccessToken();
-    if (!accessToken) throw new Error("Sign in to publish a report. Browsing the map is always free and open.");
-    const location = await ensureLocation(pendingPin.lat, pendingPin.lng, accessToken);
-    const report = await submitReport({ locationId: location.id, accessToken, ...values });
+    if (!(await getSession()).signedIn) throw new Error("Sign in to submit a report. Browsing the map does not require an account.");
+    const location = await ensureLocation(pendingPin.lat, pendingPin.lng);
+    const report = await submitReport({ locationId: location.id, ...values });
     setPendingPin(null);
     setMessage(report.moderation_status === "pending"
       ? "Thank you. Your note and any photo are private until a human moderator approves them."

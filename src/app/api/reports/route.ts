@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getUserFromRequest } from "@/lib/supabase/server";
+import { getUserFromRequest } from "@/modules/auth/server/session";
 import { createReport, ReportInsertError } from "@/modules/reports/server/repository";
 import { uploadReportImage, deleteReportImage } from "@/modules/reports/server/imageStorage";
 import { REPORTER_TYPES, type ReporterType } from "@/modules/reports/types";
@@ -13,7 +13,7 @@ import { NOINDEX_HEADER } from "@/modules/seo/policy";
 import { normalizePhoto } from "@/modules/photos/server/normalize";
 
 export const runtime = "nodejs";
-const headers = { "Cache-Control": "private, no-store", Vary: "Authorization", "X-Robots-Tag": NOINDEX_HEADER };
+const headers = { "Cache-Control": "private, no-store", Vary: "Cookie", "X-Robots-Tag": NOINDEX_HEADER };
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 let submissionActive = false;
 
@@ -22,7 +22,7 @@ export async function POST(request: Request) {
   let imagePath: string | null = null;
   try {
     const user = await getUserFromRequest(request, AbortSignal.timeout(15_000));
-    if (!user) return NextResponse.json({ error: "Sign in with a confirmed account to submit a report." }, { status: 401, headers });
+    if (!user) return NextResponse.json({ error: "Sign in with Google to submit a report." }, { status: 401, headers });
     if (submissionActive) {
       return NextResponse.json({ error: "Another report is processing. Please try again shortly.", code: "submission_busy" },
         { status: 429, headers: { ...headers, "Retry-After": "10" } });

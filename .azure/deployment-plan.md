@@ -1,8 +1,42 @@
 # Deployment plan
 
-Status: **Deployment blocked: all-endpoint IP isolation is now mandatory**.
+Status: **SQLite and Google-only application migration implemented; cloud deployment remains blocked**.
+
+## Approved simplification
+
+The owner approved replacing Supabase/PostgreSQL with embedded SQLite and
+Google-only sign-in. There is no separate database service, password login,
+confirmation-email sender or custom authentication protocol. Use one SQLite
+database on durable local storage, outside source control and container images,
+with migrations and a verified backup/restore procedure.
+
+Preserve the separate public/admin websites, two-account admin authorization,
+checked pseudonyms, moderation, scoring, votes, private processed Blob photos
+and bounded inference. Both app processes may use the same database only on
+one persistent host/local filesystem; do not put SQLite on ephemeral Container
+Apps storage or a shared network filesystem.
+
+This authorizes application/container changes, not an unpriced hosting change
+or cloud provisioning. Keep IP restrictions mandatory at deployment time.
+Do not save a current-IP snapshot. Google credentials and the final persistent
+hosting/network design still require configuration before live operation.
+
+- [x] Implement the SQLite schema, transactions, geographic queries and backups.
+- [x] Replace Supabase runtime repositories and Google authentication wiring.
+- [x] Preserve public/admin boundaries and update tests against real SQLite.
+- [x] Replace obsolete runtime/build configuration and document local operation.
+- [x] Validate both apps, persistence, backups and isolated container behavior.
+
+Local verification and empty-database initialization are recorded in handoff 19.
+This does not validate cloud infrastructure, live Google consent, hosted storage
+durability or inside/outside network access. The cloud deployment hold remains.
 
 ## Network-isolation requirement (supersedes the earlier network design)
+
+The historical Supabase/Container Apps scope below is retained only as decision
+history. The active backend is SQLite with Google OIDC; use handoff 19 and the
+README. Templates moved to `infra/legacy-container-apps/` are retired, not ready
+for deployment. Local preparation does not approve any replacement cloud host.
 
 The owner requires restriction to their approved public IPs for **everything**:
 both websites, direct Blob access, and direct Supabase access. Authentication,

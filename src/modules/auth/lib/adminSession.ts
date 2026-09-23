@@ -1,6 +1,7 @@
 import "server-only";
-import { env, isSupabaseConfigured } from "@/lib/env";
+import { env } from "@/lib/env";
 import { parseAdminIds, parseAdminOrigin } from "./adminPolicy";
+import { authSettings, sameOrigin } from "../server/session";
 
 export function adminSessionSettings() {
   const origin = parseAdminOrigin(env.ADMIN_SITE_URL);
@@ -9,12 +10,10 @@ export function adminSessionSettings() {
   return {
     origin, ids, secure,
     cookieName: secure ? "__Host-clamp-admin-session" : "clamp-admin-session",
-    configured: Boolean(origin && ids && isSupabaseConfigured && env.SUPABASE_SERVICE_ROLE_KEY),
+    configured: Boolean(origin && ids && authSettings("admin").configured),
   };
 }
 
 export function isAdminSameOrigin(request: Request): boolean {
-  const { origin } = adminSessionSettings();
-  return Boolean(origin && request.headers.get("origin") === origin &&
-    request.headers.get("sec-fetch-site") !== "cross-site");
+  return sameOrigin(request, "admin");
 }

@@ -4,16 +4,17 @@
  * one place to see (and update) what the app actually needs to run.
  */
 export const env = {
-  NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL ?? "",
-  NEXT_PUBLIC_SUPABASE_ANON_KEY: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "",
-  SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY ?? "",
+  DATABASE_PATH: process.env.DATABASE_PATH ?? "",
+  GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID ?? "",
+  GOOGLE_CLIENT_SECRET: process.env.GOOGLE_CLIENT_SECRET ?? "",
+  AUTH_PUBLIC_ORIGIN: process.env.AUTH_PUBLIC_ORIGIN ?? "",
+  AUTH_ALLOWED_EMAILS: process.env.AUTH_ALLOWED_EMAILS ?? "",
+  ALLOW_PUBLIC_SIGNUP: process.env.ALLOW_PUBLIC_SIGNUP === "true",
   NEXT_PUBLIC_MAP_TILE_STYLE_URL:
     process.env.NEXT_PUBLIC_MAP_TILE_STYLE_URL ??
     "https://tiles.openfreemap.org/styles/bright",
   NEXT_PUBLIC_DONATION_URL:
     process.env.NEXT_PUBLIC_DONATION_URL ?? "",
-  NEXT_PUBLIC_GOOGLE_AUTH_ENABLED: process.env.NEXT_PUBLIC_GOOGLE_AUTH_ENABLED === "true",
-  NEXT_PUBLIC_REGISTRATION_ENABLED: process.env.NEXT_PUBLIC_REGISTRATION_ENABLED === "true",
   SITE_URL: process.env.SITE_URL ?? "",
   ALLOW_INDEXING: process.env.ALLOW_INDEXING === "true",
   VERCEL_ENV: process.env.VERCEL_ENV,
@@ -34,6 +35,4 @@ export const env = {
   ADMIN_SITE_URL: process.env.ADMIN_SITE_URL ?? "",
 } as const;
 
-export const isSupabaseConfigured = Boolean(
-  env.NEXT_PUBLIC_SUPABASE_URL && env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-);
+export const isDatabaseConfigured = Boolean(env.DATABASE_PATH);
