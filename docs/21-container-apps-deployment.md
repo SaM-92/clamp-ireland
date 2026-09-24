@@ -157,3 +157,36 @@ managed certificates are completed.
 - Verify the IP-restricted deployment from inside and outside the allowlist.
 - Open public ingress later only if/when the owner approves moving past the
   initial operator-only test posture.
+
+## Live state addendum (post-launch, supersedes the plan above where they differ)
+
+Everything above this section was written before the first live deployment and
+is kept for historical planning context; several details have since changed in
+production. Known live-vs-plan differences as of this addendum:
+
+- **Both Container Apps now run `minReplicas: 1` (not 0/scale-to-zero)**,
+  changed deliberately so the container itself never cold-starts a user's
+  request. Confirmed live via `az containerapp show ... --query
+  properties.template.scale`.
+- **Azure SQL Database still uses serverless auto-pause, currently 60 minutes
+  idle** (not the 15 minutes in the original plan) - this was a deliberate,
+  informed owner decision (2026-09-24), not an oversight:
+  - Container min-replica=1 only keeps the *app* warm; it does not touch SQL,
+    which is a separate serverless resource that pauses independently.
+  - The owner was offered three options for the resulting slow (10-60s)
+    first request after an idle DB: (1) disable auto-pause entirely for an
+    always-on DB at meaningfully higher recurring cost, (2) a free external
+    keep-alive ping hitting a DB-touching endpoint every ~20-30 minutes, or
+    (3) leave it as-is. **The owner chose (3): leave it as-is**, prioritizing
+    the project's low/no-cost constraint over eliminating this occasional
+    delay. Do not "fix" this by disabling auto-pause or adding a keep-alive
+    ping without re-confirming with the owner first - it is an accepted
+    tradeoff, not a bug.
+  - Note `src/app/api/health` deliberately does not touch the database (it is
+    a cheap liveness probe), so it cannot be used as a keep-alive target if a
+    ping-based approach is ever revisited.
+- Session cookies use `SameSite=Lax`, not the stricter `Strict` originally
+  used - `Strict` could be silently dropped by some browsers on the redirect
+  hop immediately following Google's cross-site OAuth callback, bouncing a
+  successful sign-in back to a plain (error-free) sign-in page. See
+  `src/modules/auth/server/session.ts`'s `createSession`.
