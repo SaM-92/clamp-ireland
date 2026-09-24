@@ -11,11 +11,18 @@ const config: NextConfig = {
   env: buildReleaseEnvironment(),
   turbopack: { root },
   outputFileTracingRoot: root,
+  serverExternalPackages: ["sharp"],
   outputFileTracingIncludes: {
     "/*": [
       "../../node_modules/geographiclib-geodesic/LICENSE.txt",
       "../../node_modules/openid-client/LICENSE.md",
       "../../node_modules/oauth4webapi/LICENSE.md",
+    ],
+    "/api/moderation/reports/[id]": [
+      "../../node_modules/sharp/**/*",
+      "../../node_modules/@img/**/*",
+      "../../node_modules/detect-libc/**/*",
+      "../../node_modules/semver/**/*",
     ],
   },
   async headers() {

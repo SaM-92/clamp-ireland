@@ -63,6 +63,13 @@ export async function deleteReportImage(path: string): Promise<void> {
   await blob(path).deleteIfExists({ abortSignal: AbortSignal.timeout(15_000) });
 }
 
+/** Fetches a private original's raw bytes for server-side redaction. Callers
+ * must already have authorized the request (e.g. an active administrator). */
+export async function downloadReportImage(path: string): Promise<Uint8Array> {
+  const buffer = await blob(path).downloadToBuffer(0, undefined, { abortSignal: AbortSignal.timeout(15_000) });
+  return new Uint8Array(buffer);
+}
+
 /** Shared SAS-signing core. Callers below each enforce their own expiry cap and access contract. */
 async function signBlobUrl(path: string, expiresInSeconds: number): Promise<string> {
   const evidence = blob(path);

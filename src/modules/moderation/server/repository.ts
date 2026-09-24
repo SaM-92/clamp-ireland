@@ -1,10 +1,15 @@
 import "server-only";
 import { z } from "zod";
 import { database, writeTransaction } from "@/lib/db/server";
-import { getSignedImageUrl } from "@/modules/reports/server/imageStorage";
+import {
+  deleteReportImage, downloadReportImage, getSignedImageUrl, uploadReportImage,
+} from "@/modules/reports/server/imageStorage";
 import { recomputeLocationScore } from "@/modules/scoring";
 import { invalidateNearbyAreaSummaries } from "@/modules/area-summaries/server/repository";
-import { pendingReportsSchema, type PendingReport, publishedReportsSchema, type PublishedReport } from "../types";
+import { redactImage } from "./redact";
+import {
+  pendingReportsSchema, type PendingReport, publishedReportsSchema, type PublishedReport, type RedactionRegion,
+} from "../types";
 
 /** Text and photos awaiting human review. */
 export async function listPendingReports(): Promise<PendingReport[]> {
@@ -41,32 +46,55 @@ export async function listPendingReports(): Promise<PendingReport[]> {
   return pendingReportsSchema.parse(reports);
 }
 
-/** Publish the reviewed wording without changing the private original. */
-export async function approveReport(reportId: string, description: string, reviewerId: string) {
+/** Publish the reviewed wording without changing the private original, unless
+ * redactions are given - in which case a redacted copy becomes the published
+ * photo and the untouched original is kept privately for audit. */
+export async function approveReport(
+  reportId: string, description: string, reviewerId: string, redactions?: RedactionRegion[]
+) {
   const db0 = await database();
-  const evidence = await db0.prepare(`SELECT has_image,image_url FROM reports
+  const evidence = await db0.prepare(`SELECT user_id,has_image,image_url FROM reports
     WHERE id=? AND moderation_status='pending' AND is_removed=0`).get(reportId);
   if (!evidence) throw new Error("Only an existing pending report can be approved.");
   if (evidence.has_image || evidence.image_url) {
     if (!evidence.image_url) throw new Error("Cannot approve a report with missing photo evidence.");
     await getSignedImageUrl(evidence.image_url as string, 600);
   }
-  return writeTransaction(async (db) => {
-    if (!(await db.prepare("SELECT id FROM profiles WHERE id=? AND is_admin=1 AND is_banned=0").get(reviewerId))) {
-      throw new Error("An active human administrator is required.");
-    }
-    const data = await db.prepare(`UPDATE reports SET moderation_status='published',description=?,reviewed_at=?,reviewed_by=?
-      OUTPUT inserted.id,inserted.location_id
-      WHERE id=? AND moderation_status='pending' AND is_removed=0 AND (image_url = ? OR (image_url IS NULL AND ? IS NULL))`)
-      .get(description, new Date().toISOString(), reviewerId, reportId, evidence.image_url, evidence.image_url);
-    if (!data) throw new Error("Report or evidence changed. Reload before approving.");
-    const locationId = z.uuid().parse(data.location_id);
-    await recomputeLocationScore(locationId, db);
-    const location = z.object({ latitude: z.number(), longitude: z.number() }).nullable()
-      .parse(await db.prepare("SELECT lat AS latitude,lng AS longitude FROM locations WHERE id=?").get(locationId));
-    if (location) await invalidateNearbyAreaSummaries(location, db);
-    return data;
-  });
+
+  let publishedImageUrl = evidence.image_url as string | null;
+  let originalImageUrl: string | null = null;
+  if (evidence.image_url && redactions && redactions.length > 0) {
+    const original = await downloadReportImage(evidence.image_url as string);
+    const redacted = await redactImage(original, redactions);
+    publishedImageUrl = await uploadReportImage(redacted, evidence.user_id as string);
+    originalImageUrl = evidence.image_url as string;
+  }
+
+  try {
+    return await writeTransaction(async (db) => {
+      if (!(await db.prepare("SELECT id FROM profiles WHERE id=? AND is_admin=1 AND is_banned=0").get(reviewerId))) {
+        throw new Error("An active human administrator is required.");
+      }
+      const data = await db.prepare(`UPDATE reports SET moderation_status='published',description=?,reviewed_at=?,reviewed_by=?,
+          image_url=?,original_image_url=?
+        OUTPUT inserted.id,inserted.location_id
+        WHERE id=? AND moderation_status='pending' AND is_removed=0 AND (image_url = ? OR (image_url IS NULL AND ? IS NULL))`)
+        .get(description, new Date().toISOString(), reviewerId, publishedImageUrl, originalImageUrl,
+          reportId, evidence.image_url, evidence.image_url);
+      if (!data) throw new Error("Report or evidence changed. Reload before approving.");
+      const locationId = z.uuid().parse(data.location_id);
+      await recomputeLocationScore(locationId, db);
+      const location = z.object({ latitude: z.number(), longitude: z.number() }).nullable()
+        .parse(await db.prepare("SELECT lat AS latitude,lng AS longitude FROM locations WHERE id=?").get(locationId));
+      if (location) await invalidateNearbyAreaSummaries(location, db);
+      return data;
+    });
+  } catch (error) {
+    // Clean up the redacted upload if the report changed underneath us -
+    // the original private evidence is untouched either way.
+    if (originalImageUrl && publishedImageUrl) await deleteReportImage(publishedImageUrl).catch(() => {});
+    throw error;
+  }
 }
 
 /** Rejects and soft-removes a report that shouldn't be public. */

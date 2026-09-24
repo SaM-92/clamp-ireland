@@ -1,12 +1,18 @@
 import { NextResponse } from "next/server";
 import { requireAdmin } from "@/modules/auth/lib/requireAdmin";
 import { approveReport, rejectReport } from "@/modules/moderation/server/repository";
+import { redactionRegionsSchema } from "@/modules/moderation/types";
 import { CONTENT_LIMITS } from "@/modules/content-policy/policy";
 import { z } from "zod";
 
 const headers = { "Cache-Control": "private, no-store", Vary: "Authorization, Cookie" };
 const decisionSchema = z.discriminatedUnion("action", [
-  z.object({ action: z.literal("approve"), description: z.string().trim().min(1).max(CONTENT_LIMITS.report_note), reviewed: z.literal(true) }),
+  z.object({
+    action: z.literal("approve"),
+    description: z.string().trim().min(1).max(CONTENT_LIMITS.report_note),
+    reviewed: z.literal(true),
+    redactions: redactionRegionsSchema.optional(),
+  }),
   z.object({ action: z.literal("reject") }),
 ]);
 
@@ -26,7 +32,7 @@ export async function PATCH(
   }
   try {
     const report = result.data.action === "approve"
-      ? await approveReport(id, result.data.description, admin.id)
+      ? await approveReport(id, result.data.description, admin.id, result.data.redactions)
       : await rejectReport(id);
     return NextResponse.json(report, { headers });
   } catch (error) {

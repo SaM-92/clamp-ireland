@@ -5,6 +5,15 @@
 .card textarea { min-width: 0; }
 .evidence { display: grid; gap: 8px; min-width: 0; margin: 0; }
 .evidence img { display: block; max-height: 360px; max-width: 100%; width: auto; object-fit: contain; border: 1px solid var(--border); border-radius: 8px; }
+.canvas { position: relative; display: inline-block; max-width: 100%; }
+.overlay { position: absolute; inset: 0; cursor: crosshair; touch-action: none; }
+.region { position: absolute; border: 2px solid; border-radius: 2px; display: flex; align-items: flex-start; justify-content: flex-end; }
+.regionBlur { border-color: #eab308; background: rgba(234, 179, 8, 0.25); }
+.regionBlackout { border-color: #111827; background: rgba(0, 0, 0, 0.6); }
+.regionDraft { position: absolute; border: 2px dashed var(--accent); background: rgba(37, 99, 235, 0.15); pointer-events: none; }
+.regionRemove { pointer-events: auto; min-height: 22px; min-width: 22px; margin: 2px; line-height: 1; border: none; border-radius: 999px; background: rgba(17, 24, 39, 0.85); color: #fff; cursor: pointer; font-size: 14px; }
+.redactionControls { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; font-size: 13px; }
+.redactionControls label { display: inline-flex; gap: 4px; align-items: center; }
 .confirmation { display: flex; gap: 12px; align-items: center; min-height: 44px; font-size: 14px; }
 .confirmation input { width: 20px; height: 20px; flex-shrink: 0; accent-color: var(--accent); }
 .actions { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; }

@@ -225,4 +225,12 @@ ALTER VIEW dbo.reports_public AS
    (SELECT count(*) FROM dbo.report_votes v WHERE v.report_id=r.id AND v.vote='agree') AS agree_count,
    (SELECT count(*) FROM dbo.report_votes v WHERE v.report_id=r.id AND v.vote='disagree') AS disagree_count
  FROM dbo.reports r WHERE r.moderation_status='published' AND r.reviewed_at IS NOT NULL AND r.is_removed=0;
+`, `
+-- Optional manual redaction: when a moderator draws blur/black-box rectangles
+-- over an approved photo (see src/modules/moderation/server/redact.ts),
+-- image_url is replaced with the redacted copy (the only one ever exposed
+-- publicly) and the untouched original upload's path moves here, kept
+-- private, for audit/appeal purposes only. NULL means the photo was
+-- approved unchanged, so image_url already IS the original.
+ALTER TABLE dbo.reports ADD original_image_url nvarchar(1000) NULL;
 `];

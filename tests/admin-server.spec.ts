@@ -50,3 +50,43 @@ test("private photo errors block approval; successful review atomically publishe
     expect((await f.db.prepare("SELECT report_count FROM locations WHERE id=?").get(locationId))?.report_count).toBe(1);
   } finally { await f.close(); }
 });
+
+test("redacted approval publishes the redacted copy and keeps the original private, rolling back the upload if the report changed mid-flight", async () => {
+  const uploads: { bytes: Uint8Array; ownerId: string }[] = [];
+  const deletedPaths: string[] = [];
+  let mutateOnDownload: (() => Promise<void>) | null = null;
+  const f = await sqlRuntime({
+    "@/modules/reports/server/imageStorage": {
+      getSignedImageUrl: async () => "https://private.fixture.invalid/synthetic-signed-photo",
+      downloadReportImage: async () => {
+        if (mutateOnDownload) await mutateOnDownload();
+        return new Uint8Array([1, 2, 3, 4]);
+      },
+      uploadReportImage: async (bytes: Uint8Array, ownerId: string) => {
+        uploads.push({ bytes, ownerId });
+        return `reports/${ownerId}/redacted-${uploads.length}.webp`;
+      },
+      deleteReportImage: async (path: string) => { deletedPaths.push(path); },
+    },
+    "./redact": { redactImage: async () => new Uint8Array([9, 9, 9]) },
+  });
+  try {
+    const repo = f.load<typeof import("../src/modules/moderation/server/repository")>("src/modules/moderation/server/repository.ts");
+    const region = { x: 0, y: 0, width: 0.2, height: 0.2, mode: "blackout" as const };
+
+    const id = await f.report({ status: "pending", photo: "private/original.webp", user: owner });
+    await repo.approveReport(id, "Reviewed wording.", owner, [region]);
+    expect(uploads).toEqual([{ bytes: new Uint8Array([9, 9, 9]), ownerId: owner }]);
+    expect(await f.db.prepare("SELECT image_url,original_image_url,moderation_status FROM reports WHERE id=?").get(id)).toEqual({
+      image_url: `reports/${owner}/redacted-1.webp`, original_image_url: "private/original.webp", moderation_status: "published",
+    });
+
+    const racedId = await f.report({ status: "pending", photo: "private/raced.webp", user: owner });
+    mutateOnDownload = async () => { await f.db.prepare("UPDATE reports SET is_removed=1 WHERE id=?").run(racedId); };
+    await expect(async () => repo.approveReport(racedId, "Reviewed wording.", owner, [region])).rejects.toThrow("changed");
+    expect(deletedPaths).toEqual([`reports/${owner}/redacted-2.webp`]);
+    expect(await f.db.prepare("SELECT image_url,original_image_url,moderation_status FROM reports WHERE id=?").get(racedId)).toMatchObject({
+      image_url: "private/raced.webp", original_image_url: null, moderation_status: "pending",
+    });
+  } finally { await f.close(); }
+});
