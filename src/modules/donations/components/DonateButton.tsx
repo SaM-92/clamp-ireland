@@ -23,21 +23,33 @@ export function DonateButton({ className = "" }: { className?: string }) {
   if (!stripeReady) {
     if (!DONATION_URL) {
       return <span className={`support-placeholder ${className}`} title="Support link coming soon">
-        <Icon name="heart" /> <span>Support us <span className="support-soon">soon</span></span>
+        <Icon name="heart" />
+        <span className="support-label-full">Support us <span className="support-soon">soon</span></span>
+        <span className="support-label-short">Soon &#9749;</span>
       </span>;
     }
     return (
-      <a href={DONATION_URL} target="_blank" rel="noopener noreferrer" className={`button button-support support-cta ${className}`}>
-        <Icon name="heart" className="support-heart" /> <span>Buy us a coffee</span>
-      </a>
+      <span className="support-wrap">
+        <a href={DONATION_URL} target="_blank" rel="noopener noreferrer" className={`button button-support support-cta ${className}`}>
+          <Icon name="heart" className="support-heart" />
+          <span className="support-label-full">Support us &mdash; buy us a coffee!</span>
+          <span className="support-label-short">Support us &#9749;</span>
+        </a>
+        <span className="support-bubble" aria-hidden="true">Support us! &#9749;</span>
+      </span>
     );
   }
 
   return (
     <>
-      <button type="button" className={`button button-support support-cta ${className}`} onClick={() => setOpen(true)}>
-        <Icon name="heart" className="support-heart" /> <span>Buy us a coffee</span>
-      </button>
+      <span className="support-wrap">
+        <button type="button" className={`button button-support support-cta ${className}`} onClick={() => setOpen(true)}>
+          <Icon name="heart" className="support-heart" />
+          <span className="support-label-full">Support us &mdash; buy us a coffee!</span>
+          <span className="support-label-short">Support us &#9749;</span>
+        </button>
+        <span className="support-bubble" aria-hidden="true">Support us! &#9749;</span>
+      </span>
       {open && <SupportDialog onClose={() => setOpen(false)} />}
     </>
   );
