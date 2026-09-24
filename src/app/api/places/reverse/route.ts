@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { IRELAND_BOUNDS, parsePlaces } from "@/modules/map/lib/searchPlaces";
+import { IRELAND_BOUNDS } from "@/modules/map/lib/searchPlaces";
+import { reverseGeocodeResilient } from "@/modules/map/lib/geocodeProviders";
 
 export async function GET(request: Request) {
   const params = new URL(request.url).searchParams;
@@ -12,26 +13,12 @@ export async function GET(request: Request) {
   // Round to ~11 m so nearby lookups for the same reported spot share one cache entry.
   const roundedLat = Math.round(lat * 10_000) / 10_000;
   const roundedLng = Math.round(lng * 10_000) / 10_000;
-  const url = new URL("https://photon.komoot.io/reverse");
-  url.searchParams.set("lon", String(roundedLng));
-  url.searchParams.set("lat", String(roundedLat));
-  url.searchParams.set("lang", "en");
-  try {
-    const response = await fetch(url, {
-      headers: { Accept: "application/json" },
-      // Street layout barely changes; cache generously to keep third-party calls low.
-      next: { revalidate: 2_592_000 },
-      signal: AbortSignal.timeout(8_000),
-    });
-    if (!response.ok) throw new Error(`Geocoder returned ${response.status}`);
-    const [place] = parsePlaces(await response.json());
-    return NextResponse.json(
-      { name: place?.name ?? null, address: place?.address ?? null },
-      { headers: { "Cache-Control": "public, max-age=3600, s-maxage=2592000" } },
-    );
-  } catch (error) {
-    console.error("[ReverseGeocode] provider failed", error instanceof Error ? error.message : error);
-    // Fail soft: callers fall back to showing coordinates, not an error state.
-    return NextResponse.json({ name: null, address: null });
-  }
+  const result = await reverseGeocodeResilient(roundedLat, roundedLng);
+  // Fails soft (never throws): callers fall back to showing coordinates. Only
+  // cache a resolved name - an unresolved miss must not be cached, otherwise a
+  // transient provider outage would keep serving "unknown" for a month.
+  const headers = result.name
+    ? { "Cache-Control": "public, max-age=3600, s-maxage=2592000" }
+    : { "Cache-Control": "no-store" };
+  return NextResponse.json(result, { headers });
 }
