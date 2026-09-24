@@ -1,4 +1,5 @@
 import "server-only";
+import { authSettings } from "@/modules/auth/server/session";
 import { trafficEventSchema, type TrafficEvent } from "../types";
 
 export const MAX_TRAFFIC_BODY_BYTES = 256;
@@ -10,9 +11,14 @@ export class TrafficRequestError extends Error {
 }
 
 export async function readTrafficEvent(request: Request): Promise<TrafficEvent> {
+  // Compares against the configured public origin (AUTH_PUBLIC_ORIGIN), not
+  // request.url's own origin: behind the Container Apps ingress, TLS is
+  // terminated upstream, so request.url reflects the internal http
+  // connection and never matches the browser's https Origin header.
+  const trustedOrigin = authSettings("public").origin;
   const origin = request.headers.get("origin");
   const fetchSite = request.headers.get("sec-fetch-site");
-  if (origin !== new URL(request.url).origin || (fetchSite !== null && fetchSite !== "same-origin")) {
+  if (!trustedOrigin || origin !== trustedOrigin || (fetchSite !== null && fetchSite !== "same-origin")) {
     throw new TrafficRequestError("Same-origin traffic requests only.", 403);
   }
   if (request.headers.get("content-type")?.split(";")[0].trim().toLowerCase() !== "application/json") {

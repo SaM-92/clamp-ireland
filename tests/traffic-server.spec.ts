@@ -45,7 +45,10 @@ test("real public POST rejects invalid and cross-origin events before DB access,
   let fail = false;
   const events: unknown[] = [];
   const parser = loadServer<typeof import("../src/modules/analytics/server/request")>(
-    "src/modules/analytics/server/request.ts", { "../types": trafficTypes },
+    "src/modules/analytics/server/request.ts", {
+      "../types": trafficTypes,
+      "@/modules/auth/server/session": { authSettings: () => ({ origin: "https://site.test" }) },
+    },
   );
   const route = loadServer<typeof import("../src/app/api/analytics/pageview/route")>(
     "src/app/api/analytics/pageview/route.ts", {
