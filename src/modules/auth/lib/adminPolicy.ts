@@ -1,6 +1,8 @@
 import { z } from "zod";
 
-const idsSchema = z.array(z.uuid()).length(2).refine((ids) => new Set(ids).size === 2);
+// One or two admins are allowed so a first approved account can sign in on its own
+// before a second account has ever signed in to be promoted.
+const idsSchema = z.array(z.uuid()).min(1).max(2).refine((ids) => new Set(ids).size === ids.length);
 
 export function parseAdminIds(value: string | undefined): string[] | null {
   const result = idsSchema.safeParse((value ?? "").split(",").map((id) => id.trim()));

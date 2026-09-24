@@ -3,8 +3,9 @@ import { NextResponse } from "next/server";
 import { parseAdminIds, parseAdminOrigin } from "../src/modules/auth/lib/adminPolicy";
 import { sqlRuntime, owner, cofounder, outsider, adminOrigin, publicOrigin } from "./helpers/sql-runtime";
 
-test("admin configuration requires exactly two distinct UUIDs and a trusted origin", () => {
-  for (const value of [undefined, "", owner, `${owner},${owner}`, `${owner},${cofounder},${outsider}`, "email@fixture.invalid"]) expect(parseAdminIds(value)).toBeNull();
+test("admin configuration accepts one or two distinct UUIDs and a trusted origin", () => {
+  for (const value of [undefined, "", `${owner},${owner}`, `${owner},${cofounder},${outsider}`, "email@fixture.invalid"]) expect(parseAdminIds(value)).toBeNull();
+  expect(parseAdminIds(owner)).toEqual([owner]);
   expect(parseAdminIds(`${owner}, ${cofounder}`)).toEqual([owner, cofounder]);
   for (const value of ["", "http://admin.fixture.invalid", `${adminOrigin}/path`, `${adminOrigin}?next=other`]) expect(parseAdminOrigin(value)).toBeNull();
   expect(parseAdminOrigin(adminOrigin)).toBe(adminOrigin);

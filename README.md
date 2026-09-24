@@ -63,15 +63,16 @@ and limited to its existing ten-attempt budget. Do not reset that budget.
    the configured server-only AI provider; it is not bypassed for setup.
 5. Configure `apps/admin/.env.local` from its example. Use the **same absolute
    `DATABASE_PATH`** as the public app and configure Google credentials and
-   `ADMIN_SITE_URL=http://localhost:3003`. After both intended administrators
-   have signed in on the public app, run `npm run db -- accounts` locally.
-   Assign their two existing UUIDs with
-   `npm run db -- admins <first-uuid> <second-uuid>`, then privately set
-   `ADMIN_ALLOWED_USER_IDS` to those same two comma-separated IDs. This command
-   revokes prior admin sessions. Never commit real IDs or credentials.
-6. Run `npm run dev:admin -- --hostname 127.0.0.1`. Only the two listed,
-   non-banned administrator profiles can enter the separate admin website.
-   There is no admin signup or preview bypass.
+   `ADMIN_SITE_URL=http://localhost:3003`. After an intended administrator
+   has signed in on the public app, run `npm run db -- accounts` locally.
+   Assign their UUID with `npm run db -- admins <uuid>` (or
+   `npm run db -- admins <first-uuid> <second-uuid>` once a second admin has
+   also signed in), then privately set `ADMIN_ALLOWED_USER_IDS` to that same
+   one or two comma-separated IDs. This command revokes prior admin sessions.
+   Never commit real IDs or credentials.
+6. Run `npm run dev:admin -- --hostname 127.0.0.1`. Only the one or two
+   listed, non-banned administrator profiles can enter the separate admin
+   website. There is no admin signup or preview bypass.
 
 Google credentials and the real administrator accounts are **not configured
 in this repository**. Synthetic tests are not proof of live Google consent setup.
