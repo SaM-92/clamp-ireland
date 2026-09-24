@@ -190,3 +190,21 @@ production. Known live-vs-plan differences as of this addendum:
   hop immediately following Google's cross-site OAuth callback, bouncing a
   successful sign-in back to a plain (error-free) sign-in page. See
   `src/modules/auth/server/session.ts`'s `createSession`.
+- **The Storage account's IP firewall (`networkRuleSet.defaultAction`) is now
+  `Allow`, not `Deny`** (changed 2026-09-24). The original plan's premise -
+  "discover the Container Apps environment's real outbound egress IPs, then
+  allow only those" - does not hold for a Consumption-plan environment: it has
+  no small fixed egress IP set, it shares a pool of 140+ regional NAT IPs with
+  other tenants that can change over time. With the IP allowlist left at just
+  the one operator IP from initial setup, every blob request from both apps
+  (photo upload, moderation review, and published-photo signing) was silently
+  failing with a 403 `AuthorizationFailure` - `getSignedPublishedPhotoUrl`
+  swallowed the error and returned `imageUrl: null`, so published report
+  photos simply never rendered on the public site. Real access control here is
+  still fully intact without the IP restriction: `allowBlobPublicAccess:
+  false` and `allowSharedKeyAccess: false` on the account mean every request -
+  network rules aside - must carry a valid Entra RBAC token or a SAS derived
+  from a user delegation key, and the container itself has no anonymous public
+  access. A future move to a VNet-integrated environment + Storage private
+  endpoint would let the IP allowlist be reinstated properly, but that's a
+  real cost/complexity step, not a quick fix.
