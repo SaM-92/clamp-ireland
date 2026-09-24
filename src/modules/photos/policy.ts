@@ -7,7 +7,7 @@ export const PHOTO_LIMITS = {
 } as const;
 
 export const PHOTO_ACCEPT = "image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif";
-export const PHOTO_HINT = "JPEG, PNG, WebP or HEIC/HEIF, up to 50 MiB and 64 megapixels. RAW/DNG is not supported. We remove metadata and compress stored photos to at most 3 MiB.";
+export const PHOTO_HINT = "JPG, PNG, WebP or iPhone (HEIC) photos. We automatically strip hidden location and device data before storing them.";
 
 export class PhotoError extends Error {
   constructor(public readonly code: "invalid_photo" | "photo_busy" | "photo_unavailable",
