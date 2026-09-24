@@ -58,7 +58,7 @@ test("both session audiences require exact Origin on every mutation; logout revo
   } finally { await f.close(); }
 });
 
-test("session cookies are opaque, hashed, host-only, HttpOnly, Strict and audience-bounded", async () => {
+test("session cookies are opaque, hashed, host-only, HttpOnly, Lax and audience-bounded", async () => {
   const f = await sqlRuntime();
   try {
     const auth = f.load<typeof import("../src/modules/auth/server/session")>("src/modules/auth/server/session.ts");
@@ -66,7 +66,10 @@ test("session cookies are opaque, hashed, host-only, HttpOnly, Strict and audien
       const response = NextResponse.json({});
       await auth.createSession(owner, audience, response);
       const cookie = response.headers.get("set-cookie")!;
-      for (const part of ["HttpOnly", "Secure", "SameSite=strict", "Path=/", `Max-Age=${audience === "admin" ? 3600 : 86400}`]) expect(cookie).toContain(part);
+      // Lax, not Strict: this cookie is set on the response completing the Google OAuth
+      // cross-site redirect chain, and a Strict cookie can be dropped by some browsers on
+      // the very next same-site hop of that same chain (see session.ts createSession).
+      for (const part of ["HttpOnly", "Secure", "SameSite=lax", "Path=/", `Max-Age=${audience === "admin" ? 3600 : 86400}`]) expect(cookie).toContain(part);
       expect(cookie).not.toContain("Domain=");
       const raw = response.cookies.get(`__Host-clamp-${audience}-session`)!.value;
       expect(raw).toMatch(/^[A-Za-z0-9_-]{43}$/);

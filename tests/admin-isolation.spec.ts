@@ -44,7 +44,7 @@ test("Google-only sign-in UI and database-backed logout use a private cookie and
   const cookies = await page.context().cookies(adminBaseURL);
   const session = cookies.find((cookie) => cookie.name === "clamp-admin-session")!;
   expect(session.httpOnly).toBe(true);
-  expect(session.sameSite).toBe("Strict");
+  expect(session.sameSite).toBe("Lax");
   expect(await page.evaluate(() => document.cookie)).not.toContain("clamp-admin-session");
   expect(await page.evaluate(() => Object.keys(localStorage))).toEqual([]);
   const headers = { Cookie: `clamp-admin-session=${fixtureSession("cofounder-session")}`, Origin: "https://public.fixture.invalid" };

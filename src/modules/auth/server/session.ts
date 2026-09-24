@@ -60,8 +60,14 @@ export async function createSession(userId: string, audience: SessionAudience, r
     await db.prepare("INSERT INTO sessions(token_hash,user_id,audience,expires_at,created_at) VALUES (?,?,?,?,?)")
       .run(tokenHash(token), userId, audience, now + settings.maxAge * 1000, now);
   });
+  // Lax, not Strict: this cookie is set on the response that completes the Google OAuth
+  // redirect chain (a cross-site top-level navigation). Some browsers drop a Strict cookie
+  // on the very next same-site hop of that same redirect chain (the follow-up 303 to
+  // /admin or /auth/username), silently bouncing an otherwise-successful sign-in back to
+  // the sign-in page. Lax still blocks the cookie from any cross-site request that isn't a
+  // top-level GET navigation, which is what actually matters here.
   response.cookies.set(settings.cookieName, token, {
-    httpOnly: true, secure: settings.secure, sameSite: "strict", path: "/", maxAge: settings.maxAge,
+    httpOnly: true, secure: settings.secure, sameSite: "lax", path: "/", maxAge: settings.maxAge,
   });
 }
 export async function signOut(request: Request, audience: SessionAudience): Promise<NextResponse> {

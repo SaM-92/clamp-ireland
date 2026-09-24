@@ -30,6 +30,6 @@ export async function authorizeAdmin(page: Page, token = "owner-session") {
   }
   await page.context().addCookies([{
     name: "clamp-admin-session", value: fixtureSession(token), url: adminBaseURL,
-    httpOnly: true, sameSite: "Strict",
+    httpOnly: true, sameSite: "Lax",
   }]);
 }
