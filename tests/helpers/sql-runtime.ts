@@ -91,6 +91,12 @@ export async function sqlRuntime(dependencies: Record<string, unknown> = {}, glo
       options.text ?? "Parking permits are mentioned.", "PRIVATE ORIGINAL", createdAt, status,
       status === "published" ? new Date().toISOString() : null, reviewedBy, Number(Boolean(options.anonymous)),
       options.nickname ?? null);
+    // Mirrors the app's real dual-write: every photo also gets a dbo.report_photos row (sort_order 0
+    // for a single-photo fixture), since that table is the source of truth for moderation/approval.
+    if (options.photo) {
+      await db.prepare("INSERT INTO report_photos(id,report_id,sort_order,image_url) VALUES (?,?,0,?)")
+        .run(randomUUID(), id, options.photo);
+    }
     return id;
   }
   async function close() {

@@ -233,4 +233,26 @@ ALTER VIEW dbo.reports_public AS
 -- private, for audit/appeal purposes only. NULL means the photo was
 -- approved unchanged, so image_url already IS the original.
 ALTER TABLE dbo.reports ADD original_image_url nvarchar(1000) NULL;
+`, `
+-- Up to 3 photos per report (previously exactly one). dbo.report_photos is
+-- the source of truth for every photo going forward, ordered by sort_order
+-- (0-2). reports.has_image/image_url/original_image_url stay exactly as they
+-- were and are kept in application-level sync with sort_order=0 only, so
+-- every existing single-photo reader (scoring, dbo.reports_public, the
+-- original moderation redaction/replace flow) keeps working unchanged and
+-- always sees the first photo. New multi-photo-aware code reads
+-- dbo.report_photos directly instead.
+CREATE TABLE dbo.report_photos (
+  id nvarchar(36) NOT NULL PRIMARY KEY,
+  report_id nvarchar(36) NOT NULL REFERENCES dbo.reports(id) ON DELETE CASCADE,
+  sort_order int NOT NULL CHECK (sort_order BETWEEN 0 AND 2),
+  image_url nvarchar(1000) NOT NULL,
+  original_image_url nvarchar(1000) NULL,
+  CONSTRAINT report_photos_unique_order UNIQUE (report_id,sort_order)
+);
+CREATE INDEX report_photos_report ON dbo.report_photos(report_id);
+-- Backfill: every existing report that already has a photo becomes photo 0.
+INSERT INTO dbo.report_photos (id,report_id,sort_order,image_url,original_image_url)
+SELECT LOWER(CONVERT(nvarchar(36),NEWID())),id,0,image_url,original_image_url FROM dbo.reports WHERE image_url IS NOT NULL;
 `];
+

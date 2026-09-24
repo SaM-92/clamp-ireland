@@ -15,14 +15,20 @@ export const redactionRegionSchema = z.object({
 export const redactionRegionsSchema = z.array(redactionRegionSchema).min(1).max(20);
 export type RedactionRegion = z.infer<typeof redactionRegionSchema>;
 
+export const pendingReportPhotoSchema = z.object({
+  imageUrl: z.url().nullable(),
+  imageError: z.string().nullable(),
+});
+export type PendingReportPhoto = z.infer<typeof pendingReportPhotoSchema>;
+
 export const pendingReportsSchema = z.array(z.object({
   id: z.string().uuid(),
   locationId: z.string().uuid(),
   reporterType: z.enum(["victim", "neighbour", "witness"]),
   description: z.string(),
-  imageUrl: z.url().nullable(),
+  // Up to 3 photos, in submission order; empty when the report has none.
+  photos: z.array(pendingReportPhotoSchema).max(3),
   hasImage: z.boolean(),
-  imageError: z.string().nullable(),
   createdAt: z.iso.datetime({ offset: true }),
   isAnonymous: z.boolean(),
   // true when the AI risk check flagged this text for review (always false for photo-only holds).

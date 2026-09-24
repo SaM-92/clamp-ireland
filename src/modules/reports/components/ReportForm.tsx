@@ -16,7 +16,8 @@ export interface ReportFormValues {
   reporterType: ReporterType;
   description: string;
   incidentDate: string;
-  image: File | null;
+  /** Up to 3 photos, in submission order. */
+  images: File[];
   turnstileToken?: string;
   nickname?: string;
 }
@@ -55,14 +56,18 @@ export function ReportDialog({ location, preview, signedIn, onSubmit, onCancel }
   );
 }
 
+const MAX_PHOTOS = 3;
+
 export function ReportForm({ onSubmit, onCancel, preview = false, signedIn = true }: ReportFormProps) {
   const [reporterType, setReporterType] = useState<ReporterType>("victim");
   const [description, setDescription] = useState("");
   const [incidentDate, setIncidentDate] = useState("");
   const [nickname, setNickname] = useState("");
-  const [image, setImage] = useState<File | null>(null);
-  const [failedPreviewUrl, setFailedPreviewUrl] = useState<string | null>(null);
+  const [images, setImages] = useState<File[]>([]);
+  const [previewErrors, setPreviewErrors] = useState<Set<number>>(new Set());
   const fileInput = useRef<HTMLInputElement>(null);
+  // Which photo slot the next file picker selection replaces; null means "append a new photo".
+  const replaceIndexRef = useRef<number | null>(null);
   const [honeypot, setHoneypot] = useState("");
   const [turnstileToken, setTurnstileToken] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -71,31 +76,57 @@ export function ReportForm({ onSubmit, onCancel, preview = false, signedIn = tru
   const anonymous = !preview && !signedIn;
   const handleTurnstileToken = useCallback((token: string) => setTurnstileToken(token), []);
 
-  // Derived, not stored: recomputed only when the selected file itself changes.
-  const imagePreviewUrl = useMemo(() => (image ? URL.createObjectURL(image) : null), [image]);
-  const previewFailed = failedPreviewUrl !== null && failedPreviewUrl === imagePreviewUrl;
+  // Derived, not stored: recomputed only when the selected files themselves change.
+  const previewUrls = useMemo(() => images.map((file) => URL.createObjectURL(file)), [images]);
 
-  // Object URLs must be revoked when the file changes or the form unmounts, otherwise
+  // Object URLs must be revoked when the files change or the form unmounts, otherwise
   // each selected photo leaks memory for the life of the page.
   useEffect(() => {
-    return () => { if (imagePreviewUrl) URL.revokeObjectURL(imagePreviewUrl); };
-  }, [imagePreviewUrl]);
+    return () => { for (const url of previewUrls) URL.revokeObjectURL(url); };
+  }, [previewUrls]);
 
-  function pickPhoto(selected: File | null) {
+  function openPicker(replaceIndex: number | null) {
+    replaceIndexRef.current = replaceIndex;
+    fileInput.current?.click();
+  }
+
+  function handleFileSelected(selected: File | null) {
+    if (fileInput.current) fileInput.current.value = "";
+    if (!selected) return;
     try {
-      if (selected) validatePhoto(selected);
-      setImage(selected);
-      setError(null);
+      validatePhoto(selected);
     } catch (cause) {
-      setImage(null);
-      if (fileInput.current) fileInput.current.value = "";
       setError(cause instanceof Error ? cause.message : "Choose a supported photo.");
+      return;
+    }
+    setError(null);
+    const replaceIndex = replaceIndexRef.current;
+    setImages((current) => {
+      if (replaceIndex !== null && replaceIndex < current.length) {
+        const next = [...current];
+        next[replaceIndex] = selected;
+        return next;
+      }
+      if (current.length >= MAX_PHOTOS) return current;
+      return [...current, selected];
+    });
+    if (replaceIndex !== null) {
+      setPreviewErrors((current) => {
+        if (!current.has(replaceIndex)) return current;
+        const next = new Set(current);
+        next.delete(replaceIndex);
+        return next;
+      });
     }
   }
 
-  function removePhoto() {
-    setImage(null);
-    if (fileInput.current) fileInput.current.value = "";
+  function removePhoto(index: number) {
+    setImages((current) => current.filter((_, i) => i !== index));
+    setPreviewErrors((current) => {
+      const next = new Set<number>();
+      for (const i of current) { if (i < index) next.add(i); else if (i > index) next.add(i - 1); }
+      return next;
+    });
   }
 
   async function handleSubmit(event: FormEvent) {
@@ -123,8 +154,8 @@ export function ReportForm({ onSubmit, onCancel, preview = false, signedIn = tru
     try {
       const checkedDescription = validateContent("report_note", description);
       const checkedNickname = anonymous ? validateContent("nickname", nickname) : undefined;
-      if (image) validatePhoto(image);
-      await onSubmit({ reporterType, description: checkedDescription, incidentDate, image,
+      for (const file of images) validatePhoto(file);
+      await onSubmit({ reporterType, description: checkedDescription, incidentDate, images,
         turnstileToken: anonymous ? turnstileToken : undefined, nickname: checkedNickname });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong.");
@@ -205,37 +236,43 @@ export function ReportForm({ onSubmit, onCancel, preview = false, signedIn = tru
         />
       </label>
       <div className="field photo-field">
-        <span id="report-photo-label">Add a photo <span className="field-hint">Optional</span></span>
+        <span id="report-photo-label">Add up to 3 photos <span className="field-hint">Optional</span></span>
         <input
           ref={fileInput}
           type="file"
           accept={PHOTO_ACCEPT}
           className="visually-hidden"
           aria-labelledby="report-photo-label"
-          onChange={(e) => pickPhoto(e.target.files?.[0] ?? null)}
+          onChange={(e) => handleFileSelected(e.target.files?.[0] ?? null)}
         />
-        {!image && (
-          <button type="button" className="button button-surface photo-pick-button" onClick={() => fileInput.current?.click()}>
-            <Icon name="camera" width="18" height="18" /> Choose a photo
-          </button>
-        )}
-        {image && (
-          <div className="photo-preview">
-            {imagePreviewUrl && !previewFailed ? (
-              // eslint-disable-next-line @next/next/no-img-element -- local object URL preview, not an optimizable remote image
-              <img src={imagePreviewUrl} alt="Selected photo preview" onError={() => setFailedPreviewUrl(imagePreviewUrl)} />
-            ) : (
-              <div className="photo-preview-fallback" aria-hidden="true"><Icon name="camera" width="22" height="22" /></div>
-            )}
-            <div className="photo-preview-info">
-              <span className="photo-preview-name">{image.name}</span>
-              <div className="photo-preview-actions">
-                <button type="button" className="button button-surface" onClick={() => fileInput.current?.click()}>Replace photo</button>
-                <button type="button" className="button button-surface" onClick={removePhoto}>Remove</button>
+        <div className="photo-slots">
+          {images.map((file, index) => {
+            const failed = previewErrors.has(index);
+            return (
+              <div className="photo-preview" key={index}>
+                {!failed ? (
+                  // eslint-disable-next-line @next/next/no-img-element -- local object URL preview, not an optimizable remote image
+                  <img src={previewUrls[index]} alt={`Selected photo ${index + 1} preview`}
+                    onError={() => setPreviewErrors((current) => new Set(current).add(index))} />
+                ) : (
+                  <div className="photo-preview-fallback" aria-hidden="true"><Icon name="camera" width="22" height="22" /></div>
+                )}
+                <div className="photo-preview-info">
+                  <span className="photo-preview-name">{file.name}</span>
+                  <div className="photo-preview-actions">
+                    <button type="button" className="button button-surface" onClick={() => openPicker(index)}>Replace photo</button>
+                    <button type="button" className="button button-surface" onClick={() => removePhoto(index)}>Remove</button>
+                  </div>
+                </div>
               </div>
-            </div>
-          </div>
-        )}
+            );
+          })}
+          {images.length < MAX_PHOTOS && (
+            <button type="button" className="button button-surface photo-pick-button" onClick={() => openPicker(null)}>
+              <Icon name="camera" width="18" height="18" /> {images.length === 0 ? "Choose a photo" : "Add another photo"}
+            </button>
+          )}
+        </div>
         <span className="field-hint">{PHOTO_HINT}</span>
         <span className="field-hint">{preview ? "Preview only. Photos are not uploaded or stored." : "Photos remain private evidence for moderators, even after a report is approved. Avoid faces and number plates."}</span>
       </div>

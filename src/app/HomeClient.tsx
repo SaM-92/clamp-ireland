@@ -104,7 +104,7 @@ export function HomeClient({ initialStats, preview, aiDemo = false }: { initialS
       const description = validateContent("report_note", values.description);
       const report: PreviewReport = {
         id: crypto.randomUUID(), ...pendingPin, reporterType: values.reporterType,
-        hasImage: Boolean(values.image), createdAt: new Date().toISOString(),
+        hasImage: values.images.length > 0, createdAt: new Date().toISOString(),
         description, incidentDate: values.incidentDate || null,
       };
       const next = [...previewReports, report];

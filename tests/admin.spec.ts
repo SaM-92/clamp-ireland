@@ -12,7 +12,7 @@ const localReport = {
 };
 const pendingReport = {
   id, locationId, reporterType: "witness", description: "Private wording for review",
-  createdAt: "2026-09-22T10:00:00Z", hasImage: false, imageUrl: null, imageError: null,
+  createdAt: "2026-09-22T10:00:00Z", hasImage: false, photos: [],
   isAnonymous: false, isFlagged: false,
 };
 
@@ -127,8 +127,10 @@ test("photo signing and image load failures block approval; reload recovers safe
   let imageFailed = true;
   const photo = "http://localhost/private-evidence-test.svg";
   await page.route("**/api/moderation/reports", (route) => route.fulfill({ json: [{
-    ...pendingReport, hasImage: true, imageUrl: signingFailed ? null : photo,
-    imageError: signingFailed ? "Private photo could not be signed. Approval is blocked." : null,
+    ...pendingReport, hasImage: true, photos: [{
+      imageUrl: signingFailed ? null : photo,
+      imageError: signingFailed ? "Private photo could not be signed. Approval is blocked." : null,
+    }],
   }] }));
   await page.route(photo, (route) => imageFailed
     ? route.fulfill({ status: 403, body: "Expired" })

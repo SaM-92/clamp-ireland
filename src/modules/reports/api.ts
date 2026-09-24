@@ -10,7 +10,8 @@ export interface SubmitReportArgs {
   reporterType: ReporterType;
   description: string;
   incidentDate: string;
-  image: File | null;
+  /** Up to 3 photos, in submission order. */
+  images: File[];
   /** Present only for the anonymous ("no account needed") submission path. */
   turnstileToken?: string;
   /** Required freeform display name for the anonymous path only. */
@@ -27,7 +28,7 @@ export async function submitReport(args: SubmitReportArgs): Promise<SubmittedRep
   formData.set("reporterType", args.reporterType);
   formData.set("description", args.description);
   if (args.incidentDate) formData.set("incidentDate", args.incidentDate);
-  if (args.image) formData.set("image", args.image);
+  for (const image of args.images) formData.append("image", image);
   if (args.turnstileToken) formData.set("turnstileToken", args.turnstileToken);
   if (args.nickname) formData.set("nickname", args.nickname);
   // Honeypot: a real visitor never sees or fills this field (see ReportForm.tsx).

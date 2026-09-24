@@ -105,7 +105,7 @@ test("approved normalized notes remain pending and forged approval objects canno
     });
     const repo = f.load<typeof import("../src/modules/reports/server/repository")>("src/modules/reports/server/repository.ts");
     await expect(async () => repo.createReport({
-      locationId, userId: owner, reporterType: "witness", incidentDate: null, imagePath: null,
+      locationId, userId: owner, reporterType: "witness", incidentDate: null, imagePaths: [],
       approvedDescription: { kind: "report_note", text: "Forged pass" },
     })).rejects.toThrow("temporarily unavailable");
     const profiles = f.load<typeof import("../src/modules/auth/server/profile")>("src/modules/auth/server/profile.ts");
@@ -156,7 +156,7 @@ test("50 MiB image and streamed body boundaries apply even when content length l
     expect((await name(256)).status).toBe(200);
     expect((await name(257)).status).toBe(400);
     const oversized = await f.request("/api/reports", {
-      method: "POST", headers: { "Content-Length": "1" }, body: new Uint8Array(PHOTO_LIMITS.sourceBytes + 1024 * 1024 + 1),
+      method: "POST", headers: { "Content-Length": "1" }, body: new Uint8Array(PHOTO_LIMITS.sourceBytes * 3 + 1024 * 1024 + 1),
     });
     expect((await f.reports.POST(oversized)).status).toBe(400);
     expect((await f.reports.POST(await f.report("A factual note.", {}, PHOTO_LIMITS.sourceBytes))).status).toBe(200);
@@ -205,11 +205,14 @@ test("report admission serializes bodies and releases after a failed inference",
   } finally { await f.close(); }
 });
 
-test("duplicate images and empty images fail before quota and inference", async () => {
+test("more than 3 images and an empty image both fail before quota and inference", async () => {
   const f = await fixture();
   try {
     const body = await (await f.report()).formData();
-    body.append("image", new File(["another"], "second.png", { type: "image/png" }));
+    // 1 photo already set by f.report(), plus 3 more here = 4 total, exceeding the 3-photo cap.
+    body.append("image", new File(["second"], "second.png", { type: "image/png" }));
+    body.append("image", new File(["third"], "third.png", { type: "image/png" }));
+    body.append("image", new File(["fourth"], "fourth.png", { type: "image/png" }));
     expect((await f.reports.POST(await f.request("/api/reports", { method: "POST", body }))).status).toBe(400);
     body.set("image", new File([], "empty.png", { type: "image/png" }));
     expect((await f.reports.POST(await f.request("/api/reports", { method: "POST", body }))).status).toBe(413);

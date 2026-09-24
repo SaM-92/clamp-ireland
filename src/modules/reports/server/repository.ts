@@ -14,7 +14,8 @@ export interface CreateReportInput {
   reporterType: ReporterType;
   approvedDescription: ApprovedContent;
   incidentDate: string | null;
-  imagePath: string | null;
+  /** Up to 3 uploaded private evidence paths, in submission order (empty when no photo). */
+  imagePaths: string[];
   isAnonymous?: boolean;
   /** Required, content-policy-checked display name for anonymous submitters only (see
    * assessReportRisk's sibling check, checkContentPolicy with kind "nickname"). Always null for
@@ -40,11 +41,12 @@ export class ReportInsertError extends Error {
  * was already cleared by the AI risk check (see assessReportRisk; never set for photo reports). */
 export async function createReport(input: CreateReportInput): Promise<SubmittedReport> {
   assertApprovedContent(input.approvedDescription, "report_note");
-  if (input.autoPublish && input.imagePath) throw new Error("A photo report can never auto-publish.");
+  if (input.autoPublish && input.imagePaths.length > 0) throw new Error("A photo report can never auto-publish.");
   const description = await getTextSoftener().soften(input.approvedDescription.text);
   const id = randomUUID();
   const createdAt = new Date().toISOString();
   const autoPublish = Boolean(input.autoPublish);
+  const primaryImagePath = input.imagePaths[0] ?? null;
   try {
     return await writeTransaction(async (db) => {
       if (!(await db.prepare("SELECT id FROM profiles WHERE id=? AND is_banned=0 AND username_policy_checked_at IS NOT NULL").get(input.userId))) {
@@ -54,9 +56,13 @@ export async function createReport(input: CreateReportInput): Promise<SubmittedR
         (id,location_id,user_id,reporter_type,has_image,image_url,description,description_raw,incident_date,created_at,
          is_anonymous,nickname,is_flagged,moderation_status,reviewed_at)
         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(id, z.uuid().parse(input.locationId), input.userId,
-        input.reporterType, Number(Boolean(input.imagePath)), input.imagePath, description,
+        input.reporterType, Number(input.imagePaths.length > 0), primaryImagePath, description,
         input.approvedDescription.text, input.incidentDate, createdAt, Number(Boolean(input.isAnonymous)),
         input.nickname ?? null, Number(Boolean(input.isFlagged)), autoPublish ? "published" : "pending", autoPublish ? createdAt : null);
+      for (const [sortOrder, imageUrl] of input.imagePaths.entries()) {
+        await db.prepare("INSERT INTO report_photos(id,report_id,sort_order,image_url) VALUES (?,?,?,?)")
+          .run(randomUUID(), id, sortOrder, imageUrl);
+      }
       if (autoPublish) {
         await recomputeLocationScore(input.locationId, db);
         const location = z.object({ latitude: z.number(), longitude: z.number() }).nullable()
@@ -65,7 +71,7 @@ export async function createReport(input: CreateReportInput): Promise<SubmittedR
       }
       return {
         id, location_id: input.locationId, reporter_type: input.reporterType,
-        has_image: Boolean(input.imagePath), description, incident_date: input.incidentDate,
+        has_image: input.imagePaths.length > 0, description, incident_date: input.incidentDate,
         moderation_status: autoPublish ? "published" : "pending", created_at: createdAt,
         is_anonymous: Boolean(input.isAnonymous), is_flagged: Boolean(input.isFlagged),
       };

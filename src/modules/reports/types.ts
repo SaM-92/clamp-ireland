@@ -13,7 +13,8 @@ export interface PublicReport {
   incidentDate: string | null;
   createdAt: string;
   voteCounts?: VoteCounts;
-  imageUrl?: string | null;
+  /** Up to 3 signed photo URLs, in submission order; empty/absent when the report has none. */
+  images?: string[];
   isAnonymous?: boolean;
   nickname?: string | null;
 }

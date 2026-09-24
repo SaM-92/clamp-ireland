@@ -237,6 +237,7 @@ svg { flex-shrink: 0; }
 .photo-preview-name { font-size: 12px; font-weight: 400; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .photo-preview-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .photo-preview-actions .button { font-size: 12px; padding: 7px 12px; min-height: 34px; }
+.photo-slots { display: flex; flex-direction: column; gap: 12px; }
 .dialog-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; border-top: 1px solid var(--border); padding-top: 20px; }
 .form-error { padding: 12px; border-radius: 8px; border: 1px solid #e2b5bd; background: #fff3f4; color: var(--danger); font-size: 13px; }
 .error-text { color: var(--danger); }
@@ -293,6 +294,8 @@ svg { flex-shrink: 0; }
 .reporter-nickname { font-weight: 600; color: var(--foreground); }
 .public-notes p { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 14px; line-height: 1.7; }
 .report-photo { display: block; width: 100%; max-height: 320px; object-fit: cover; border-radius: 8px; margin-top: 10px; }
+.report-photo-gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 8px; margin-top: 10px; }
+.report-photo-gallery .report-photo { margin-top: 0; max-height: 180px; }
 .review-list { display: grid; gap: 24px; }
 .review-card { display: grid; gap: 16px; padding: 24px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); }
 .review-card > p { font-size: 13px; color: var(--muted); }

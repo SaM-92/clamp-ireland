@@ -87,9 +87,13 @@ export function LocationNotes({ location, previewNotes, onClose, onReport }: {
                 </span>
               )}<time dateTime={note.incidentDate ?? note.createdAt}>{(note.incidentDate ?? note.createdAt).slice(0, 10)}</time></div>
               <p>{note.description}</p>
-              {note.imageUrl && (
-                // eslint-disable-next-line @next/next/no-img-element -- signed URL from private blob storage, must not pass through a public image optimizer
-                <img className="report-photo" src={note.imageUrl} alt="Photo submitted with this report" loading="lazy" referrerPolicy="no-referrer" />
+              {note.images && note.images.length > 0 && (
+                <div className="report-photo-gallery">
+                  {note.images.map((url, index) => (
+                    // eslint-disable-next-line @next/next/no-img-element -- signed URL from private blob storage, must not pass through a public image optimizer
+                    <img key={url} className="report-photo" src={url} alt={`Photo ${index + 1} submitted with this report`} loading="lazy" referrerPolicy="no-referrer" />
+                  ))}
+                </div>
               )}
               {preview ? (
                 <ReportVotes reportId={note.id} preview counts={{ agreeCount: 0, disagreeCount: 0 }} />

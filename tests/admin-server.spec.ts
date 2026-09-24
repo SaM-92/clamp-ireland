@@ -35,7 +35,7 @@ test("private photo errors block approval; successful review atomically publishe
     const id = await f.report({ status: "pending", photo: "private/photo.webp" });
     const repo = f.load<typeof import("../src/modules/moderation/server/repository")>("src/modules/moderation/server/repository.ts");
     const rows = await repo.listPendingReports();
-    expect(rows[0]).toMatchObject({ hasImage: true, imageUrl: null, imageError: expect.stringContaining("Approval is blocked") });
+    expect(rows[0]).toMatchObject({ hasImage: true, photos: [{ imageUrl: null, imageError: expect.stringContaining("Approval is blocked") }] });
     await expect(async () => repo.approveReport(id, "Reviewed wording.", owner)).rejects.toThrow("Storage unavailable");
     expect((await f.db.prepare("SELECT moderation_status FROM reports WHERE id=?").get(id))?.moderation_status).toBe("pending");
     missing = false;
@@ -75,7 +75,7 @@ test("redacted approval publishes the redacted copy and keeps the original priva
     const region = { x: 0, y: 0, width: 0.2, height: 0.2, mode: "blackout" as const };
 
     const id = await f.report({ status: "pending", photo: "private/original.webp", user: owner });
-    await repo.approveReport(id, "Reviewed wording.", owner, [region]);
+    await repo.approveReport(id, "Reviewed wording.", owner, [{ redactions: [region] }]);
     expect(uploads).toEqual([{ bytes: new Uint8Array([9, 9, 9]), ownerId: owner }]);
     expect(await f.db.prepare("SELECT image_url,original_image_url,moderation_status FROM reports WHERE id=?").get(id)).toEqual({
       image_url: `reports/${owner}/redacted-1.webp`, original_image_url: "private/original.webp", moderation_status: "published",
@@ -83,10 +83,84 @@ test("redacted approval publishes the redacted copy and keeps the original priva
 
     const racedId = await f.report({ status: "pending", photo: "private/raced.webp", user: owner });
     mutateOnDownload = async () => { await f.db.prepare("UPDATE reports SET is_removed=1 WHERE id=?").run(racedId); };
-    await expect(async () => repo.approveReport(racedId, "Reviewed wording.", owner, [region])).rejects.toThrow("changed");
+    await expect(async () => repo.approveReport(racedId, "Reviewed wording.", owner, [{ redactions: [region] }])).rejects.toThrow("changed");
     expect(deletedPaths).toEqual([`reports/${owner}/redacted-2.webp`]);
     expect(await f.db.prepare("SELECT image_url,original_image_url,moderation_status FROM reports WHERE id=?").get(racedId)).toMatchObject({
       image_url: "private/raced.webp", original_image_url: null, moderation_status: "pending",
     });
+  } finally { await f.close(); }
+});
+
+test("a replacement photo publishes as-is (no redaction pass) and keeps the original evidence private for audit", async () => {
+  const uploads: { bytes: Uint8Array; ownerId: string }[] = [];
+  let downloadCalled = false;
+  let redactCalled = false;
+  const f = await sqlRuntime({
+    "@/modules/reports/server/imageStorage": {
+      getSignedImageUrl: async () => "https://private.fixture.invalid/synthetic-signed-photo",
+      downloadReportImage: async () => { downloadCalled = true; return new Uint8Array([1, 2, 3, 4]); },
+      uploadReportImage: async (bytes: Uint8Array, ownerId: string) => {
+        uploads.push({ bytes, ownerId });
+        return `reports/${ownerId}/replacement-${uploads.length}.webp`;
+      },
+      deleteReportImage: async () => {},
+    },
+    "./redact": { redactImage: async () => { redactCalled = true; return new Uint8Array([9, 9, 9]); } },
+  });
+  try {
+    const repo = f.load<typeof import("../src/modules/moderation/server/repository")>("src/modules/moderation/server/repository.ts");
+    const replacement = new Uint8Array([5, 5, 5]);
+    const id = await f.report({ status: "pending", photo: "private/original.webp", user: owner });
+    await repo.approveReport(id, "Reviewed wording.", owner, [{ replacementPhoto: replacement }]);
+    expect(downloadCalled).toBe(false);
+    expect(redactCalled).toBe(false);
+    expect(uploads).toEqual([{ bytes: replacement, ownerId: owner }]);
+    expect(await f.db.prepare("SELECT image_url,original_image_url,moderation_status FROM reports WHERE id=?").get(id)).toEqual({
+      image_url: `reports/${owner}/replacement-1.webp`, original_image_url: "private/original.webp", moderation_status: "published",
+    });
+  } finally { await f.close(); }
+});
+
+test("up to 3 photos per report: each is reviewed and edited independently, and only sort_order 0 mirrors onto reports.image_url", async () => {
+  const uploads: { bytes: Uint8Array; ownerId: string }[] = [];
+  const f = await sqlRuntime({
+    "@/modules/reports/server/imageStorage": {
+      getSignedImageUrl: async (path: string) => `https://private.fixture.invalid/${path}`,
+      downloadReportImage: async () => new Uint8Array([1, 2, 3, 4]),
+      uploadReportImage: async (bytes: Uint8Array, ownerId: string) => {
+        uploads.push({ bytes, ownerId });
+        return `reports/${ownerId}/edited-${uploads.length}.webp`;
+      },
+      deleteReportImage: async () => {},
+    },
+    "./redact": { redactImage: async () => new Uint8Array([7, 7, 7]) },
+  });
+  try {
+    const repo = f.load<typeof import("../src/modules/moderation/server/repository")>("src/modules/moderation/server/repository.ts");
+    const id = await f.report({ status: "pending", photo: "private/photo-0.webp", user: owner });
+    await f.db.prepare("INSERT INTO report_photos(id,report_id,sort_order,image_url) VALUES ('photo-1',?,1,'private/photo-1.webp')").run(id);
+    await f.db.prepare("INSERT INTO report_photos(id,report_id,sort_order,image_url) VALUES ('photo-2',?,2,'private/photo-2.webp')").run(id);
+
+    const rows = await repo.listPendingReports();
+    expect(rows[0].photos).toEqual([
+      { imageUrl: "https://private.fixture.invalid/private/photo-0.webp", imageError: null },
+      { imageUrl: "https://private.fixture.invalid/private/photo-1.webp", imageError: null },
+      { imageUrl: "https://private.fixture.invalid/private/photo-2.webp", imageError: null },
+    ]);
+
+    const region = { x: 0, y: 0, width: 0.2, height: 0.2, mode: "blur" as const };
+    const replacement = new Uint8Array([9, 9, 9]);
+    // Photo 0 (sort_order 0) is left unchanged; photo 1 is redacted; photo 2 is replaced outright.
+    await repo.approveReport(id, "Reviewed wording.", owner, [undefined, { redactions: [region] }, { replacementPhoto: replacement }]);
+
+    expect(await f.db.prepare("SELECT image_url,original_image_url FROM reports WHERE id=?").get(id)).toEqual({
+      image_url: "private/photo-0.webp", original_image_url: null,
+    });
+    const photoRows = await f.db.prepare("SELECT sort_order,image_url,original_image_url FROM report_photos WHERE report_id=? ORDER BY sort_order").all(id);
+    expect(photoRows).toEqual([
+      { sort_order: 0, image_url: "private/photo-0.webp", original_image_url: null },
+      { sort_order: 1, image_url: `reports/${owner}/edited-1.webp`, original_image_url: "private/photo-1.webp" },
+      { sort_order: 2, image_url: `reports/${owner}/edited-2.webp`, original_image_url: "private/photo-2.webp" },
+    ]);
   } finally { await f.close(); }
 });

@@ -12,6 +12,7 @@
 .regionBlackout { border-color: #111827; background: rgba(0, 0, 0, 0.6); }
 .regionDraft { position: absolute; border: 2px dashed var(--accent); background: rgba(37, 99, 235, 0.15); pointer-events: none; }
 .regionRemove { pointer-events: auto; min-height: 22px; min-width: 22px; margin: 2px; line-height: 1; border: none; border-radius: 999px; background: rgba(17, 24, 39, 0.85); color: #fff; cursor: pointer; font-size: 14px; }
+.replaceControls { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
 .redactionControls { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; font-size: 13px; }
 .redactionControls label { display: inline-flex; gap: 4px; align-items: center; }
 .confirmation { display: flex; gap: 12px; align-items: center; min-height: 44px; font-size: 14px; }

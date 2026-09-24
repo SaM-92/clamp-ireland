@@ -1,7 +1,6 @@
 import "server-only";
 import { Worker } from "node:worker_threads";
 import { setTimeout, clearTimeout } from "node:timers";
-import path from "node:path";
 import { PHOTO_LIMITS, PhotoError, validatePhoto } from "../policy";
 
 let processing = false;
@@ -21,7 +20,9 @@ export async function normalizePhoto(file: File): Promise<Uint8Array> {
   try {
     const bytes = await file.arrayBuffer();
     return await new Promise<Uint8Array>((resolve, reject) => {
-      worker = new Worker(path.join(process.cwd(), "src", "modules", "photos", "server", "normalize-worker.mjs"), {
+      // Resolve relative to this module's own file, not process.cwd(): normalize.ts is
+      // shared by both the public app and the admin app, which have different roots.
+      worker = new Worker(new URL("./normalize-worker.mjs", import.meta.url), {
         workerData: { bytes, limits: PHOTO_LIMITS }, transferList: [bytes],
         resourceLimits: { maxOldGenerationSizeMb: 256 },
       });

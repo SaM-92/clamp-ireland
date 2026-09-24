@@ -23,9 +23,11 @@ const headers = { "Cache-Control": "private, no-store", Vary: "Cookie", "X-Robot
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 let submissionActive = false;
 
+const MAX_PHOTOS = 3;
+
 export async function POST(request: Request) {
   let admitted = false;
-  let imagePath: string | null = null;
+  const imagePaths: string[] = [];
   try {
     const user = await getUserFromRequest(request, AbortSignal.timeout(15_000));
     // A cookie that failed to resolve to a live user (expired, forged, banned,
@@ -45,14 +47,14 @@ export async function POST(request: Request) {
     try {
       formData = await readReportForm(request);
     } catch {
-      return NextResponse.json({ error: "Invalid, oversized or timed-out upload. Choose one photo up to 50 MiB.", code: "invalid_report_form" }, { status: 400, headers });
+      return NextResponse.json({ error: "Invalid, oversized or timed-out upload. Choose up to 3 photos, each up to 50 MiB.", code: "invalid_report_form" }, { status: 400, headers });
     }
     const locationIdField = formData.get("locationId");
     const latField = formData.get("lat");
     const lngField = formData.get("lng");
     const reporterType = formData.get("reporterType");
     const incidentDate = formData.get("incidentDate");
-    const image = formData.get("image");
+    const images = formData.getAll("image");
     const hasLocationId = typeof locationIdField === "string" && uuid.test(locationIdField);
     const lat = typeof latField === "string" ? Number(latField) : NaN;
     const lng = typeof lngField === "string" ? Number(lngField) : NaN;
@@ -73,9 +75,10 @@ export async function POST(request: Request) {
     if (typeof incidentDate === "string" && incidentDate !== "" && incidentDate > todayInDublin()) {
       return NextResponse.json({ error: "Incident date cannot be in the future." }, { status: 400, headers });
     }
-    if (image !== null && !(image instanceof File)) throw new PhotoError("invalid_photo", "Choose one supported photo file.", 400);
-    if (formData.getAll("image").length > 1) throw new PhotoError("invalid_photo", "Choose one photo per report.", 400);
-    if (image instanceof File) validatePhoto(image);
+    if (images.length > MAX_PHOTOS) throw new PhotoError("invalid_photo", "Choose up to 3 photos per report.", 400);
+    if (images.some((entry) => !(entry instanceof File))) throw new PhotoError("invalid_photo", "Choose only supported photo files.", 400);
+    const photoFiles = images as File[];
+    for (const file of photoFiles) validatePhoto(file);
     const description = validateContent("report_note", formData.get("description"));
     const admissionSignal = AbortSignal.timeout(15_000);
     const isAnonymous = !user;
@@ -117,28 +120,30 @@ export async function POST(request: Request) {
     // can't be used to smuggle abuse or staff impersonation onto the public map.
     const approvedNickname = nickname ? await checkContentPolicy({ kind: "nickname", text: nickname }) : null;
     // Policy and capacity failures must happen before any evidence upload or report insert.
-    imagePath = image instanceof File ? await uploadReportImage(await normalizePhoto(image), submitterId) : null;
+    // Uploaded one at a time - normalizePhoto holds a single global processing lock and
+    // rejects a second concurrent call, so photos must be normalized sequentially, not in parallel.
+    for (const file of photoFiles) imagePaths.push(await uploadReportImage(await normalizePhoto(file), submitterId));
     // A photo always needs a human to check it for identifying details (no redaction tool
     // exists yet) - only a text-only report is ever eligible for the AI risk check below.
-    const isFlagged = imagePath ? false : await assessReportRisk(approvedDescription.text);
+    const isFlagged = imagePaths.length > 0 ? false : await assessReportRisk(approvedDescription.text);
     const report = await createReport({
       locationId,
       userId: submitterId,
       reporterType: reporterType as ReporterType,
       approvedDescription,
       incidentDate: typeof incidentDate === "string" && incidentDate ? incidentDate : null,
-      imagePath,
+      imagePaths,
       isAnonymous,
       nickname: approvedNickname?.text ?? null,
       isFlagged,
-      autoPublish: !imagePath && !isFlagged,
+      autoPublish: imagePaths.length === 0 && !isFlagged,
     });
     return NextResponse.json(report, { headers });
   } catch (err) {
-    if (imagePath) {
+    if (imagePaths.length > 0) {
       if (err instanceof ReportInsertError && err.rolledBack) {
         try {
-          await deleteReportImage(imagePath);
+          await Promise.all(imagePaths.map((path) => deleteReportImage(path)));
         } catch {
           console.error("[Reports] orphan cleanup failed; private evidence needs reconciliation");
         }

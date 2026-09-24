@@ -33,12 +33,12 @@ test("public notes exclude unreviewed, rejected, removed and every private field
     const withPhoto = data.find((note: { id: string }) => note.id === publishedWithPhoto);
     expect(withoutPhoto).toEqual({
       id: published, reporterType: "witness", description: "Parking permits are mentioned.", incidentDate: null,
-      createdAt: expect.any(String), voteCounts: { agreeCount: 0, disagreeCount: 0 }, imageUrl: null, isAnonymous: false,
+      createdAt: expect.any(String), voteCounts: { agreeCount: 0, disagreeCount: 0 }, images: [], isAnonymous: false,
       nickname: null,
     });
     expect(anonymous.isAnonymous).toBe(true);
     expect(anonymous.nickname).toBe("Dave");
-    expect(withPhoto.imageUrl).toBe("https://fixture.blob.invalid/signed?path=reports%2F10000000-0000-4000-8000-000000000001%2F20000000-0000-4000-8000-000000000002.webp&sas=fixture");
+    expect(withPhoto.images).toEqual(["https://fixture.blob.invalid/signed?path=reports%2F10000000-0000-4000-8000-000000000001%2F20000000-0000-4000-8000-000000000002.webp&sas=fixture"]);
     expect(JSON.stringify(data)).not.toContain(owner);
     expect(JSON.stringify(data)).not.toContain("PRIVATE");
   } finally { await f.close(); }

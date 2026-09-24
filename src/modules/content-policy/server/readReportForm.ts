@@ -2,7 +2,10 @@ import "server-only";
 import { setTimeout, clearTimeout } from "node:timers";
 import { PHOTO_LIMITS } from "@/modules/photos/policy";
 
-export const MAX_REPORT_BYTES = PHOTO_LIMITS.sourceBytes + 1024 * 1024;
+// Sized for the largest legitimate multipart body: up to 3 full-size source photos
+// (a report submission, or an admin replacing all 3 review photos at once) plus 1 MiB
+// of room for the other form fields.
+export const MAX_REPORT_BYTES = PHOTO_LIMITS.sourceBytes * 3 + 1024 * 1024;
 
 /** Content-Length is optional and untrusted, so enforce the cap while reading too. */
 export async function readReportForm(request: Request): Promise<FormData> {
