@@ -8,7 +8,20 @@ FROM dependencies AS source
 COPY . .
 ARG RELEASE_SHA
 ARG BUILD_PROFILE=ci
-ENV NEXT_TELEMETRY_DISABLED=1 RELEASE_BUILD=true APP_RELEASE_SHA=$RELEASE_SHA BUILD_PROFILE=$BUILD_PROFILE
+# NEXT_PUBLIC_* values are inlined into the client bundle at build time (not
+# read at container runtime), so they must arrive as build args, not just
+# container app env vars. The Stripe secret key is intentionally NOT here -
+# it stays a runtime-only container app secret and is never baked into the
+# image.
+ARG NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=""
+ARG NEXT_PUBLIC_SUPPORT_ENABLED="false"
+ARG NEXT_PUBLIC_DONATION_URL=""
+ARG NEXT_PUBLIC_TURNSTILE_SITE_KEY=""
+ENV NEXT_TELEMETRY_DISABLED=1 RELEASE_BUILD=true APP_RELEASE_SHA=$RELEASE_SHA BUILD_PROFILE=$BUILD_PROFILE \
+  NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=$NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY \
+  NEXT_PUBLIC_SUPPORT_ENABLED=$NEXT_PUBLIC_SUPPORT_ENABLED \
+  NEXT_PUBLIC_DONATION_URL=$NEXT_PUBLIC_DONATION_URL \
+  NEXT_PUBLIC_TURNSTILE_SITE_KEY=$NEXT_PUBLIC_TURNSTILE_SITE_KEY
 
 FROM source AS public-build
 RUN node scripts/prepare-map-assets.mjs

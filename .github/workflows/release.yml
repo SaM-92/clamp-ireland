@@ -113,6 +113,10 @@ jobs:
           build-args: |
             RELEASE_SHA=${{ needs.resolve.outputs.sha }}
             BUILD_PROFILE=production
+            NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=${{ vars.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY }}
+            NEXT_PUBLIC_SUPPORT_ENABLED=${{ vars.NEXT_PUBLIC_SUPPORT_ENABLED }}
+            NEXT_PUBLIC_DONATION_URL=${{ vars.NEXT_PUBLIC_DONATION_URL }}
+            NEXT_PUBLIC_TURNSTILE_SITE_KEY=${{ vars.NEXT_PUBLIC_TURNSTILE_SITE_KEY }}
       - id: admin
         uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
         env:
