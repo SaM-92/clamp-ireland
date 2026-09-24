@@ -51,21 +51,27 @@ export async function finishGoogleSignIn(request: Request, audience: SessionAudi
   const settings = authSettings(audience);
   if (!settings.configured || !settings.origin) return NextResponse.json({ error: "Google sign-in is not configured." }, { status: 503 });
   let response: NextResponse;
+  // Stage marker for diagnostics only - never assigned provider tokens, codes, emails or IDs.
+  let stage = "flow-cookie";
   try {
     const token = requestCookie(request, settings.flowCookieName);
     if (!token) throw new Error("Missing sign-in transaction.");
+    stage = "flow-lookup";
     const db0 = await database();
     const attempt = await db0.prepare(`DELETE FROM oauth_attempts OUTPUT deleted.state,deleted.nonce,deleted.verifier
       WHERE token_hash=? AND audience=? AND expires_at>?`).get(tokenHash(token), audience, Date.now());
     const flow = z.object({ state: z.string(), nonce: z.string(), verifier: z.string() }).parse(attempt);
+    stage = "token-exchange";
     const callback = new URL(`${settings.origin}/api/auth/callback`);
     callback.search = new URL(request.url).search;
     const tokens = await oidc.authorizationCodeGrant(await googleConfiguration(), callback, {
       pkceCodeVerifier: flow.verifier, expectedState: flow.state, expectedNonce: flow.nonce, idTokenExpected: true,
     });
+    stage = "identity-parse";
     const identity = z.object({
       sub: z.string().min(1).max(255), email: z.email().max(254), email_verified: z.literal(true),
     }).parse(tokens.claims());
+    stage = "profile-upsert";
     const userId = await writeTransaction(async (db) => {
       const existing = await db.prepare("SELECT id,is_banned FROM profiles WHERE google_subject=?").get(identity.sub);
       if (existing) {
@@ -81,12 +87,16 @@ export async function finishGoogleSignIn(request: Request, audience: SessionAudi
         .run(id, identity.sub, identity.email, new Date().toISOString());
       return id;
     });
+    stage = "admin-eligibility";
     if (audience === "admin" && !(await eligibleAdmin(userId))) throw new Error("Administrator access denied.");
+    stage = "session-create";
     response = NextResponse.redirect(new URL(audience === "admin" ? "/admin" : "/auth/username", settings.origin), 303);
     await createSession(userId, audience, response);
-  } catch {
-    // Never log provider tokens, authorization codes, email addresses or callback URLs.
-    console.error("[Google sign-in] identity or sign-in transaction could not be accepted");
+  } catch (error) {
+    // Never log provider tokens, authorization codes, email addresses or callback URLs -
+    // only the stage reached and the error's own message (already PII-free by convention).
+    console.error(`[Google sign-in] rejected at stage=${stage} audience=${audience}`,
+      error instanceof Error ? error.message : error);
     response = NextResponse.redirect(new URL("/auth/sign-in?error=signin_failed", settings.origin), 303);
   }
   response.headers.set("Cache-Control", "private, no-store");
