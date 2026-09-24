@@ -3,8 +3,8 @@ import { searchPlacesResilient } from "@/modules/map/lib/geocodeProviders";
 
 export async function GET(request: Request) {
   const query = new URL(request.url).searchParams.get("q")?.trim().replace(/\s+/g, " ") ?? "";
-  if (query.length < 3 || query.length > 120) {
-    return NextResponse.json({ error: "Enter between 3 and 120 characters, such as Main Street, Naas." }, { status: 400 });
+  if (query.length < 2 || query.length > 120) {
+    return NextResponse.json({ error: "Enter between 2 and 120 characters, such as Main Street, Naas." }, { status: 400 });
   }
   try {
     const results = await searchPlacesResilient(query);

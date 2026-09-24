@@ -104,7 +104,7 @@ test("real preview reset recovers corrupt votes and reports storage failures hon
     };
   }, voteKey);
   await page.getByRole("button", { name: "Reset preview", exact: true }).click();
-  await expect(page.locator(".notice")).toContainText("Could not completely clear preview storage");
+  await expect(page.locator(".toast-notice")).toContainText("Could not completely clear preview storage");
   await expect(page.locator(".location-card")).toHaveCount(1);
   expect(await page.evaluate((key) => localStorage.getItem(key), voteKey)).toBe("invalid-json");
   await page.reload();

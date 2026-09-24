@@ -35,7 +35,7 @@ test("geocoder results exclude places outside the island", () => {
   expect(() => parsePlaces({ features: [{ geometry: null }] })).toThrow();
 });
 
-test("search runs on submission and supports keyboard result selection", async ({ page }) => {
+test("search runs automatically while typing and supports keyboard result selection", async ({ page }) => {
   let calls = 0;
   await page.route("**/api/places?*", (route) => {
     calls++;
@@ -43,16 +43,15 @@ test("search runs on submission and supports keyboard result selection", async (
   });
   await page.goto("/");
   await page.getByRole("combobox", { name: "Jump to city" }).selectOption("Naas");
-  await page.getByRole("searchbox", { name: "Search towns or streets in Ireland" }).fill("Main Street Naas");
-  expect(calls).toBe(0);
-  await page.getByRole("button", { name: "Search", exact: true }).click();
+  const searchbox = page.getByRole("searchbox", { name: "Search towns or streets in Ireland" });
+  await searchbox.fill("Main Street Naas");
   const result = page.getByRole("button", { name: "North Main Street Naas, County Kildare" });
   await expect(result).toBeVisible();
-  await result.focus();
-  await page.keyboard.press("Enter");
+  expect(calls).toBeGreaterThan(0);
+  await searchbox.press("ArrowDown");
+  await searchbox.press("Enter");
   await expect(result).toHaveCount(0);
   await expect(page.getByRole("combobox", { name: "Jump to city" })).toHaveValue("");
-  expect(calls).toBe(1);
 });
 
 test("search failure has an actionable message", async ({ page }) => {
@@ -63,19 +62,24 @@ test("search failure has an actionable message", async ({ page }) => {
   await expect(page.locator(".search-results [role=alert]")).toContainText("Try the city list");
 });
 
-test("empty search gives guidance and editing cancels stale results", async ({ page }) => {
+test("empty search gives guidance and editing discards stale slow responses", async ({ page }) => {
   await page.route("**/api/places?*", async (route) => {
-    if (route.request().url().includes("slow")) await new Promise((resolve) => setTimeout(resolve, 300));
-    await route.fulfill({ json: [] });
+    if (route.request().url().includes("slow")) {
+      await new Promise((resolve) => setTimeout(resolve, 400));
+      return route.fulfill({ json: [{ id: "stale", name: "Stale Result", address: "Should never appear", lat: 53.2, lng: -6.6, zoom: 14 }] });
+    }
+    return route.fulfill({ json: [] });
   });
   await page.goto("/");
-  await page.getByRole("searchbox").fill("unknown street");
-  await page.getByRole("button", { name: "Search", exact: true }).click();
+  const searchbox = page.getByRole("searchbox", { name: "Search towns or streets in Ireland" });
+  await searchbox.fill("unknown street");
   await expect(page.locator(".search-results")).toContainText("Try adding the town or county");
-  await page.getByRole("searchbox").fill("slow street");
-  await page.getByRole("button", { name: "Search", exact: true }).click();
-  await page.getByRole("searchbox").fill("another street");
-  await expect(page.locator(".search-results")).toHaveCount(0);
+  await searchbox.fill("slow street");
+  await page.waitForTimeout(300); // let the debounce fire so the slow fetch is in flight
+  await searchbox.fill("another street");
+  await page.waitForTimeout(700); // long enough for the stale slow response to have resolved, had it not been aborted
+  await expect(page.getByText("Stale Result")).toHaveCount(0);
+  await expect(page.locator(".search-results")).toContainText("Try adding the town or county");
   await expect(page.getByRole("button", { name: "Search", exact: true })).toBeEnabled();
 });
 

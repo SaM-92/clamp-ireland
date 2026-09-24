@@ -156,7 +156,15 @@ export function HomeClient({ initialStats, preview, aiDemo = false }: { initialS
         </div>
       )}
       <TransparencySignal stats={visibleStats} />
-      {message && <p className="notice" role="status"><Icon name="info" />{message}</p>}
+      {message && (
+        <div className="toast-notice" role="status">
+          <Icon name="info" />
+          <span>{message}</span>
+          <button type="button" className="toast-notice-close" aria-label="Dismiss message" onClick={() => setMessage(null)}>
+            <Icon name="close" width="14" height="14" />
+          </button>
+        </div>
+      )}
 
       <PlaceSearch onSelect={(place) => { setFocus(place); setCity(""); }} />
       <section className="map-workspace" aria-label="Community reporting map">

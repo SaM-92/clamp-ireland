@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import type { FormEvent } from "react";
 import type { ReporterType } from "../types";
 import { Icon } from "@/lib/components/Icon";
@@ -61,6 +61,8 @@ export function ReportForm({ onSubmit, onCancel, preview = false, signedIn = tru
   const [incidentDate, setIncidentDate] = useState("");
   const [nickname, setNickname] = useState("");
   const [image, setImage] = useState<File | null>(null);
+  const [failedPreviewUrl, setFailedPreviewUrl] = useState<string | null>(null);
+  const fileInput = useRef<HTMLInputElement>(null);
   const [honeypot, setHoneypot] = useState("");
   const [turnstileToken, setTurnstileToken] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -68,6 +70,33 @@ export function ReportForm({ onSubmit, onCancel, preview = false, signedIn = tru
   const [error, setError] = useState<string | null>(null);
   const anonymous = !preview && !signedIn;
   const handleTurnstileToken = useCallback((token: string) => setTurnstileToken(token), []);
+
+  // Derived, not stored: recomputed only when the selected file itself changes.
+  const imagePreviewUrl = useMemo(() => (image ? URL.createObjectURL(image) : null), [image]);
+  const previewFailed = failedPreviewUrl !== null && failedPreviewUrl === imagePreviewUrl;
+
+  // Object URLs must be revoked when the file changes or the form unmounts, otherwise
+  // each selected photo leaks memory for the life of the page.
+  useEffect(() => {
+    return () => { if (imagePreviewUrl) URL.revokeObjectURL(imagePreviewUrl); };
+  }, [imagePreviewUrl]);
+
+  function pickPhoto(selected: File | null) {
+    try {
+      if (selected) validatePhoto(selected);
+      setImage(selected);
+      setError(null);
+    } catch (cause) {
+      setImage(null);
+      if (fileInput.current) fileInput.current.value = "";
+      setError(cause instanceof Error ? cause.message : "Choose a supported photo.");
+    }
+  }
+
+  function removePhoto() {
+    setImage(null);
+    if (fileInput.current) fileInput.current.value = "";
+  }
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
@@ -175,27 +204,41 @@ export function ReportForm({ onSubmit, onCancel, preview = false, signedIn = tru
           onChange={(e) => setIncidentDate(e.target.value)}
         />
       </label>
-      <label className="field photo-field">
-        Add a photo <span className="field-hint">Optional</span>
+      <div className="field photo-field">
+        <span id="report-photo-label">Add a photo <span className="field-hint">Optional</span></span>
         <input
+          ref={fileInput}
           type="file"
           accept={PHOTO_ACCEPT}
-          onChange={(e) => {
-            const selected = e.target.files?.[0] ?? null;
-            try {
-              if (selected) validatePhoto(selected);
-              setImage(selected);
-              setError(null);
-            } catch (cause) {
-              setImage(null);
-              e.target.value = "";
-              setError(cause instanceof Error ? cause.message : "Choose a supported photo.");
-            }
-          }}
+          className="visually-hidden"
+          aria-labelledby="report-photo-label"
+          onChange={(e) => pickPhoto(e.target.files?.[0] ?? null)}
         />
+        {!image && (
+          <button type="button" className="button button-surface photo-pick-button" onClick={() => fileInput.current?.click()}>
+            <Icon name="camera" width="18" height="18" /> Choose a photo
+          </button>
+        )}
+        {image && (
+          <div className="photo-preview">
+            {imagePreviewUrl && !previewFailed ? (
+              // eslint-disable-next-line @next/next/no-img-element -- local object URL preview, not an optimizable remote image
+              <img src={imagePreviewUrl} alt="Selected photo preview" onError={() => setFailedPreviewUrl(imagePreviewUrl)} />
+            ) : (
+              <div className="photo-preview-fallback" aria-hidden="true"><Icon name="camera" width="22" height="22" /></div>
+            )}
+            <div className="photo-preview-info">
+              <span className="photo-preview-name">{image.name}</span>
+              <div className="photo-preview-actions">
+                <button type="button" className="button button-surface" onClick={() => fileInput.current?.click()}>Replace photo</button>
+                <button type="button" className="button button-surface" onClick={removePhoto}>Remove</button>
+              </div>
+            </div>
+          </div>
+        )}
         <span className="field-hint">{PHOTO_HINT}</span>
         <span className="field-hint">{preview ? "Preview only. Photos are not uploaded or stored." : "Photos remain private evidence for moderators, even after a report is approved. Avoid faces and number plates."}</span>
-      </label>
+      </div>
       {/* Honeypot: hidden from real visitors (off-screen, not display:none, since some
           bots skip display:none fields), left blank by them, and never rendered for
           preview or signed-in submissions where it isn't needed. */}
