@@ -12,7 +12,7 @@ export const MAX_COFFEES = 99;
 export const SUPPORT_PRESETS_EUR = [5, 10, 20, 50] as const;
 
 export function isSupportConfigured(): boolean {
-  return Boolean(env.STRIPE_SECRET_KEY);
+  return env.NEXT_PUBLIC_SUPPORT_ENABLED && Boolean(env.STRIPE_SECRET_KEY);
 }
 
 let client: Stripe | undefined;

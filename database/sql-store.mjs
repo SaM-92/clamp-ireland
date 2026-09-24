@@ -110,6 +110,11 @@ function buildCredential(config) {
 async function poolConfig(config) {
   const base = {
     server: config.server, database: config.database, port: config.port ?? 1433, pool: { max: 5, min: 0, idleTimeoutMillis: 30_000 },
+    // Azure SQL serverless (the free/dev tier this project uses) auto-pauses
+    // after inactivity; resuming it can take up to ~30s. The mssql defaults
+    // (15s) are too short and turn a cold start into a user-facing 503, so
+    // both timeouts are raised well past a typical resume.
+    connectionTimeout: 45_000, requestTimeout: 30_000,
   };
   if (config.authMode === "sql") {
     // Local/CI containers only. The deployed Azure SQL server is Entra-only
@@ -128,6 +133,22 @@ async function poolConfig(config) {
     authentication: { type: "azure-active-directory-access-token", options: { token: token.token } },
     options: { encrypt: true, trustServerCertificate: false },
   };
+}
+
+/** A resuming serverless database can still refuse the very first connection
+ * attempt after its resume window opens; one retry after a short wait
+ * absorbs that instead of failing the whole request. */
+async function connectWithRetry(resolved) {
+  try {
+    return await new sql.ConnectionPool(resolved).connect();
+  } catch (error) {
+    await new Promise((resolve) => setTimeout(resolve, 5_000));
+    try {
+      return await new sql.ConnectionPool(resolved).connect();
+    } catch {
+      throw error;
+    }
+  }
 }
 
 async function ensureMigrationTable(pool) {
@@ -167,7 +188,7 @@ export async function openDatabase(config) {
     try { await cached.pool.close(); } catch { /* replacing an already-broken pool */ }
   }
   const resolved = await poolConfig(config);
-  const next = await new sql.ConnectionPool(resolved).connect();
+  const next = await connectWithRetry(resolved);
   await runMigrations(next);
   // Re-authenticate well before a typical Entra access token's ~60-90 minute
   // lifetime elapses; SQL-auth connections do not expire this way.

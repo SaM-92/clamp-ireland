@@ -969,7 +969,7 @@ function Deploy-ContainerApp {
     identityClientId       = $Identity.ClientId
     image                  = $Image
     origin                 = $Origin
-    azureSqlServer         = $SqlState.ServerName
+    azureSqlServer         = $SqlState.ServerFqdn
     azureSqlDatabase       = $SqlState.DatabaseName
     azureStorageAccountName = $StorageState.StorageAccountName
     googleClientId         = $GoogleClientId

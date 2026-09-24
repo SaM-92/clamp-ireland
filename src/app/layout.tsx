@@ -3,7 +3,6 @@ import { Geist } from "next/font/google";
 import Link from "next/link";
 import "./globals.css";
 import { DonateButton } from "@/modules/donations/components/DonateButton";
-import { Icon } from "@/lib/components/Icon";
 import { AccountMenu } from "@/modules/auth/components/AccountMenu";
 import { seoPolicy } from "@/modules/seo/config";
 import { PRIVATE_ROBOTS } from "@/modules/seo/policy";
@@ -41,7 +40,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <a className="skip-link" href="#main-content">Skip to content</a>
         <header className="site-header">
           <Link href="/" className="brand" aria-label="clamptracker.ie home">
-            <span className="brand-mark"><Icon name="pin" width="25" height="25" /></span>
+            <span className="brand-mark">
+              {/* eslint-disable-next-line @next/next/no-img-element -- static brand SVG, no need for next/image */}
+              <img src="/brand/logo.svg" alt="" width={44} height={44} />
+            </span>
             <span>clamptracker<span className="brand-subtitle">.ie</span></span>
           </Link>
           <nav className="header-nav" aria-label="Main navigation">

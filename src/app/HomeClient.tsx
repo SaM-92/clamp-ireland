@@ -13,6 +13,7 @@ import { getPreviewNotes, loadPreviewReports, savePreviewReports, summarizePrevi
 import type { LocationSummary } from "@/modules/locations/types";
 import type { TransparencyStats } from "@/modules/dashboard/types";
 import { PlaceSearch } from "@/modules/map/components/PlaceSearch";
+import { LocationCard } from "@/modules/locations/components/LocationCard";
 import { LocationNotes } from "@/modules/reports/components/LocationNotes";
 import { clearPreviewVotes } from "@/modules/votes/preview";
 import { validateContent } from "@/modules/content-policy/policy";
@@ -176,16 +177,8 @@ export function HomeClient({ initialStats, preview, aiDemo = false }: { initialS
                   <button className="text-button" onClick={startReport}>Add the first report <Icon name="arrow" /></button>
                 </div>
               ) : visibleLocations.map((location) => (
-                <button key={location.id} className="location-card"
-                  onClick={() => { setFocus({ lat: location.lat, lng: location.lng, zoom: 16 }); setCity(""); setSelectedLocation(location); }}>
-                  <span className={`risk-symbol risk-${location.riskLevel}`}><Icon name="pin" /></span>
-                  <span className="location-card-copy">
-                    <strong>{preview ? "Preview location" : "Community-reported location"}</strong>
-                    <span>{location.lat.toFixed(4)}, {location.lng.toFixed(4)}</span>
-                    <small>{location.reportCount} report{location.reportCount === 1 ? "" : "s"} · {location.riskLevel} signal</small>
-                  </span>
-                  <Icon name="arrow" />
-                </button>
+                <LocationCard key={location.id} location={location} preview={preview}
+                  onSelect={(loc) => { setFocus({ lat: loc.lat, lng: loc.lng, zoom: 16 }); setCity(""); setSelectedLocation(loc); }} />
               ))}
           </div>
           <div className="signal-guide">

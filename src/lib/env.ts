@@ -34,6 +34,10 @@ export const env = {
   // as NEXT_PUBLIC_TURNSTILE_SITE_KEY below). See docs/10-support-payments.md.
   STRIPE_SECRET_KEY: process.env.STRIPE_SECRET_KEY ?? "",
   NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY ?? "",
+  // Separate on/off switch for showing the support button at all. Stripe
+  // review/business verification can be pending even once test keys are
+  // configured, so this stays false until a maintainer explicitly flips it.
+  NEXT_PUBLIC_SUPPORT_ENABLED: process.env.NEXT_PUBLIC_SUPPORT_ENABLED === "true",
   SITE_URL: process.env.SITE_URL ?? "",
   ALLOW_INDEXING: process.env.ALLOW_INDEXING === "true",
   VERCEL_ENV: process.env.VERCEL_ENV,

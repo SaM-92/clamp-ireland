@@ -10,10 +10,15 @@ import { env } from "@/lib/env";
 const COFFEE_PRICE_EUR = 5;
 const MAX_COFFEES = 99;
 const PRESET_COFFEES = [1, 2, 4, 10];
-const stripeReady = Boolean(env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY);
+const stripeReady = env.NEXT_PUBLIC_SUPPORT_ENABLED && Boolean(env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY);
 
 export function DonateButton({ className = "" }: { className?: string }) {
   const [open, setOpen] = useState(false);
+
+  // Hidden entirely (not even a placeholder) until a maintainer turns
+  // NEXT_PUBLIC_SUPPORT_ENABLED on - Stripe review/business verification can
+  // still be pending even with test keys configured.
+  if (!env.NEXT_PUBLIC_SUPPORT_ENABLED) return null;
 
   if (!stripeReady) {
     if (!DONATION_URL) {

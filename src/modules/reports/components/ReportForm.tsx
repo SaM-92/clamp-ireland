@@ -108,9 +108,23 @@ export function ReportForm({ onSubmit, onCancel, preview = false, signedIn = tru
   return (
     <form onSubmit={handleSubmit} className="report-form">
       {anonymous && (
-        <p className="field-hint anonymous-banner">
-          Reporting anonymously — no account needed. <Link href="/auth/username">Sign in</Link> instead for a higher trust weighting on your reports.
-        </p>
+        <div className="report-mode-choice" role="group" aria-label="How are you reporting?">
+          <div className="report-mode-card report-mode-card-active">
+            <Icon name="check" width="16" height="16" />
+            <div>
+              <strong>Reporting anonymously</strong>
+              <p>No account needed - add a nickname below.</p>
+            </div>
+          </div>
+          <Link href="/auth/username" className="report-mode-card report-mode-card-link">
+            <Icon name="shield" width="16" height="16" />
+            <div>
+              <strong>Sign in instead</strong>
+              <p>Still posts under your own username, not your real name - just carries more trust weighting.</p>
+            </div>
+            <Icon name="arrow" width="16" height="16" className="report-mode-arrow" />
+          </Link>
+        </div>
       )}
       {anonymous && (
         <label className="field">
@@ -196,9 +210,13 @@ export function ReportForm({ onSubmit, onCancel, preview = false, signedIn = tru
       )}
       {error && <p className="form-error" role="alert">{error}</p>}
       {submitting && (
-        <p className="field-hint submit-status" role="status">
-          <span className="spinner" aria-hidden="true" />{submitStatus}
-        </p>
+        <div className="submit-overlay">
+          <div className="submit-overlay-box" role="status">
+            <span className="spinner spinner-lg" aria-hidden="true" />
+            <strong>{submitStatus}</strong>
+            <span>This can take a few seconds - please don&apos;t close this window.</span>
+          </div>
+        </div>
       )}
       <div className="dialog-actions">
         <button
