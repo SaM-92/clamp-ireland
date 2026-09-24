@@ -7,7 +7,7 @@ test("Google-only form has no password, email form or client-managed signup", ()
   const { SignInForm } = policyRuntime().load<typeof import("../src/modules/auth/components/SignInForm")>("src/modules/auth/components/SignInForm.tsx");
   const markup = renderToStaticMarkup(createElement(SignInForm, { configured: true, registrationOpen: false }));
   expect(markup).toContain("Only invited Google accounts");
-  expect(markup).toContain("Continue with Google");
+  expect(markup).toContain("Sign in with your Google account");
   expect(markup).toContain("/api/auth/sign-in");
   expect(markup).not.toContain("<input");
   expect(markup).not.toContain("Create account");

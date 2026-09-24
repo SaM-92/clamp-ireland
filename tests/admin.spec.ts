@@ -13,6 +13,7 @@ const localReport = {
 const pendingReport = {
   id, locationId, reporterType: "witness", description: "Private wording for review",
   createdAt: "2026-09-22T10:00:00Z", hasImage: false, imageUrl: null, imageError: null,
+  isAnonymous: false, isFlagged: false,
 };
 
 async function noOverflow(page: Page) {

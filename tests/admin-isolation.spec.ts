@@ -67,6 +67,7 @@ test("session checks preserve unsaved review edits and sign-out clears other adm
     locationId: "30000000-0000-4000-8000-000000000001",
     reporterType: "witness", description: "Review fixture",
     createdAt: "2026-09-22T10:00:00Z", hasImage: false, imageUrl: null, imageError: null,
+    isAnonymous: false, isFlagged: false,
   }] }));
   await page.goto(adminUrl("/admin/moderation"));
   const input = page.getByLabel("Public note after review");
