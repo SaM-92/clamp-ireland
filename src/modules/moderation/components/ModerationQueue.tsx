@@ -27,6 +27,9 @@ function PhotoReview({ reportId, index, photo, busy, onChange }: {
   const [replacementError, setReplacementError] = useState<string | null>(null);
   const imgRef = useRef<HTMLImageElement>(null);
   const dragStart = useRef<{ x: number; y: number } | null>(null);
+  // Move/resize of an already-drawn region, so a slightly-off box can be nudged into place
+  // instead of always being deleted and redrawn from scratch.
+  const regionEdit = useRef<{ index: number; mode: "move" | "resize"; startPoint: { x: number; y: number }; startRegion: DraftRegion } | null>(null);
   const replaceFileInput = useRef<HTMLInputElement>(null);
   const ready = !photo.imageError && (Boolean(replacementPhoto) || (Boolean(photo.imageUrl) && imageState === "loaded"));
   const displayError = photo.imageError || (imageState === "error" && !replacementPhoto
@@ -98,6 +101,45 @@ function PhotoReview({ reportId, index, photo, busy, onChange }: {
   function removeRegion(position: number) {
     setRegions((current) => current.filter((_, i) => i !== position));
   }
+  function toggleRegionMode(position: number) {
+    setRegions((current) => current.map((region, i) => (i === position ? { ...region, mode: region.mode === "blur" ? "blackout" : "blur" } : region)));
+  }
+  const MIN_REGION_SIZE = 0.02;
+  function onRegionPointerDown(event: ReactPointerEvent<HTMLDivElement>, position: number, mode: "move" | "resize") {
+    if (busy) return;
+    event.stopPropagation();
+    event.currentTarget.setPointerCapture(event.pointerId);
+    const region = regions[position];
+    regionEdit.current = { index: position, mode, startPoint: fractionFromEvent(event), startRegion: { x: region.x, y: region.y, width: region.width, height: region.height } };
+  }
+  function onRegionPointerMove(event: ReactPointerEvent<HTMLDivElement>) {
+    const edit = regionEdit.current;
+    if (!edit) return;
+    event.stopPropagation();
+    const point = fractionFromEvent(event);
+    const dx = point.x - edit.startPoint.x;
+    const dy = point.y - edit.startPoint.y;
+    setRegions((current) => current.map((region, i) => {
+      if (i !== edit.index) return region;
+      if (edit.mode === "move") {
+        return {
+          ...region,
+          x: Math.min(1 - edit.startRegion.width, Math.max(0, edit.startRegion.x + dx)),
+          y: Math.min(1 - edit.startRegion.height, Math.max(0, edit.startRegion.y + dy)),
+        };
+      }
+      return {
+        ...region,
+        width: Math.min(1 - edit.startRegion.x, Math.max(MIN_REGION_SIZE, edit.startRegion.width + dx)),
+        height: Math.min(1 - edit.startRegion.y, Math.max(MIN_REGION_SIZE, edit.startRegion.height + dy)),
+      };
+    }));
+  }
+  function onRegionPointerUp(event: ReactPointerEvent<HTMLDivElement>) {
+    if (!regionEdit.current) return;
+    event.stopPropagation();
+    regionEdit.current = null;
+  }
   return (
     <figure className={styles.evidence}>
       <div className={styles.canvas}>
@@ -113,9 +155,21 @@ function PhotoReview({ reportId, index, photo, busy, onChange }: {
           onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerLeave={onPointerUp}>
           {regions.map((region, position) => (
             <div key={position} className={`${styles.region} ${region.mode === "blur" ? styles.regionBlur : styles.regionBlackout}`}
-              style={{ left: `${region.x * 100}%`, top: `${region.y * 100}%`, width: `${region.width * 100}%`, height: `${region.height * 100}%` }}>
-              <button type="button" className={styles.regionRemove} disabled={busy}
-                onClick={(event) => { event.stopPropagation(); removeRegion(position); }} aria-label={`Remove ${region.mode} region ${position + 1}`}>×</button>
+              style={{ left: `${region.x * 100}%`, top: `${region.y * 100}%`, width: `${region.width * 100}%`, height: `${region.height * 100}%` }}
+              onPointerDown={(event) => onRegionPointerDown(event, position, "move")}
+              onPointerMove={onRegionPointerMove} onPointerUp={onRegionPointerUp} onPointerLeave={onRegionPointerUp}>
+              <div className={styles.regionButtons}>
+                <button type="button" className={styles.regionToggle} disabled={busy} onPointerDown={(event) => event.stopPropagation()}
+                  onClick={(event) => { event.stopPropagation(); toggleRegionMode(position); }}
+                  aria-label={`Switch region ${position + 1} to ${region.mode === "blur" ? "black box" : "blur"}`}>
+                  {region.mode === "blur" ? "Blur" : "Black"}
+                </button>
+                <button type="button" className={styles.regionRemove} disabled={busy} onPointerDown={(event) => event.stopPropagation()}
+                  onClick={(event) => { event.stopPropagation(); removeRegion(position); }} aria-label={`Remove ${region.mode} region ${position + 1}`}>×</button>
+              </div>
+              <div className={styles.regionHandle} onPointerDown={(event) => onRegionPointerDown(event, position, "resize")}
+                onPointerMove={onRegionPointerMove} onPointerUp={onRegionPointerUp} onPointerLeave={onRegionPointerUp}
+                aria-hidden="true" />
             </div>
           ))}
           {draft && <div className={styles.regionDraft}
@@ -139,7 +193,7 @@ function PhotoReview({ reportId, index, photo, busy, onChange }: {
         </div>
         {replacementError && <p className="form-error" role="alert">{replacementError}</p>}
         {!replacementPhoto && imageState === "loaded" && <div className={styles.redactionControls}>
-          <span className="field-hint">Optional: drag a rectangle over any face, plate or identifying detail, then choose how to hide it. Or edit the photo yourself and use Replace photo above.</span>
+          <span className="field-hint">Optional: drag a rectangle over any face, plate or identifying detail. Drag a box to move it, its bottom-right corner to resize it, or use its Blur/Black button to switch how it hides the detail. Or edit the photo yourself and use Replace photo above.</span>
           <label><input type="radio" name={`redact-mode-${reportId}-${index}`} checked={drawMode === "blur"} disabled={busy} onChange={() => setDrawMode("blur")} /> Blur</label>
           <label><input type="radio" name={`redact-mode-${reportId}-${index}`} checked={drawMode === "blackout"} disabled={busy} onChange={() => setDrawMode("blackout")} /> Black box</label>
           {regions.length > 0 && <button type="button" className="text-button" disabled={busy}
