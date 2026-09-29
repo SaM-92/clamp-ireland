@@ -37,23 +37,18 @@ resource database 'Microsoft.Sql/servers/databases@2023-08-01' = {
   parent: server
   name: 'clamp'
   location: location
+  // Basic (5 DTU, ~EUR 5/month) is always on. The earlier free serverless tier auto-paused
+  // after 60 idle minutes, so the first visitor after a quiet hour waited 30-60s for resume.
   sku: {
-    name: 'GP_S_Gen5'
-    tier: 'GeneralPurpose'
-    family: 'Gen5'
-    capacity: 1
+    name: 'Basic'
+    tier: 'Basic'
+    capacity: 5
   }
   properties: {
     createMode: 'Default'
     collation: 'Latin1_General_100_BIN2_UTF8'
-    maxSizeBytes: 34359738368
-    minCapacity: json('0.5')
-    // Free Limit databases only accept the platform default auto-pause delay (60 minutes);
-    // any other explicit value is rejected at deployment time.
-    autoPauseDelay: 60
+    maxSizeBytes: 2147483648
     requestedBackupStorageRedundancy: 'Local'
-    useFreeLimit: true
-    freeLimitExhaustionBehavior: 'AutoPause'
     zoneRedundant: false
   }
 }

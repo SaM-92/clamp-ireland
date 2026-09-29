@@ -44,10 +44,12 @@ Historical directories remain for reference only:
     1 vCPU / 2 GiB.
   - Admin app: Consumption, single active revision, min 0 / max 1 replicas,
     0.25 vCPU / 0.5 GiB.
-- **Database**: Azure SQL Database in **Sweden Central**, using the free-offer
-  serverless General Purpose SKU (`GP_S_Gen5`, capacity 1), 15-minute
-  autopause, 32 GiB max size, Entra-only authentication, and free-offer
-  exhaustion behavior set to pause rather than spill into paid usage.
+- **Database**: Azure SQL Database in **Sweden Central** on the always-on
+  **Basic** tier (5 DTU, 2 GiB max, ~EUR 5/month) with Entra-only
+  authentication. It originally used the free-offer serverless SKU
+  (`GP_S_Gen5`), but its auto-pause made the first visit after an idle hour
+  wait 30-60s for the database to resume, and the free monthly allowance ran
+  out in September 2026, so it was moved to Basic.
 - **Storage**: Standard `StorageV2` Hot LRS account in **Sweden Central** with
   private Blob storage and one container, `report-images`.
 - **Identity / RBAC**: one user-assigned managed identity per Container App,
